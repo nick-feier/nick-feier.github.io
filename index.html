@@ -698,10 +698,10 @@
                   <div class="text-xs text-ink-500 border-t border-line pt-2" x-html="emails[key].signature"></div>
                 </div>
                 <footer class="px-3 py-2 border-t border-line bg-surface-sunk flex items-center gap-1.5 flex-wrap">
-                  <!-- word count -->
-                  <span class="chip audit-chip" :class="emails[key].audits.words <= emails[key].wordsMax ? 'bg-ok-soft text-ok' : 'bg-bad-soft text-bad'">
-                    <span class="w-1.5 h-1.5 rounded-full" :class="emails[key].audits.words <= emails[key].wordsMax ? 'bg-ok' : 'bg-bad'"></span>
-                    <span x-text="`${emails[key].audits.words}/${emails[key].wordsMax} words`"></span>
+                  <!-- word count (informational, no cap) -->
+                  <span class="chip audit-chip bg-ink-100 text-ink-700">
+                    <span class="w-1.5 h-1.5 rounded-full bg-ink-400"></span>
+                    <span x-text="`${emails[key].audits.words} words`"></span>
                   </span>
                   <!-- ratio -->
                   <span class="chip audit-chip" :class="emails[key].audits.ratioOk ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'">
@@ -718,23 +718,30 @@
                     <span class="w-1.5 h-1.5 rounded-full" :class="emails[key].audits.dollar ? 'bg-ok' : 'bg-bad'"></span>
                     <span x-text="emails[key].audits.dollar ? 'no $ symbol' : '$-symbol found'"></span>
                   </span>
-                  <!-- plain-language (Haiku, debounced) -->
-                  <span class="chip audit-chip"
+                  <!-- plain-language (Haiku · manual re-check) -->
+                  <button
+                    @click="emails[key].audits.plain==='stale' && recheckPlain(key)"
+                    class="chip audit-chip"
+                    :disabled="emails[key].audits.plain==='checking' || (emails[key].audits.plain!=='stale')"
                     :class="{
-                      'bg-ink-100 text-ink-500 audit-checking': emails[key].audits.plain==='checking',
+                      'bg-ink-100 text-ink-500 audit-checking cursor-wait': emails[key].audits.plain==='checking',
                       'bg-ok-soft text-ok': emails[key].audits.plain==='PASS',
                       'bg-warn-soft text-warn': emails[key].audits.plain==='1 fix',
-                      'bg-bad-soft text-bad': emails[key].audits.plain==='FAIL'
+                      'bg-bad-soft text-bad': emails[key].audits.plain==='FAIL',
+                      'bg-acc-soft text-acc hover:bg-acc hover:text-white cursor-pointer': emails[key].audits.plain==='stale'
                     }">
-                    <span class="w-1.5 h-1.5 rounded-full"
-                      :class="{
-                        'bg-ink-300': emails[key].audits.plain==='checking',
-                        'bg-ok': emails[key].audits.plain==='PASS',
-                        'bg-warn': emails[key].audits.plain==='1 fix',
-                        'bg-bad': emails[key].audits.plain==='FAIL'
-                      }"></span>
-                    <span x-text="emails[key].audits.plain==='checking' ? 'plain-lang…' : `plain-lang ${emails[key].audits.plain}`"></span>
-                  </span>
+                    <span x-show="emails[key].audits.plain==='checking'" class="spinner inline-block">⟳</span>
+                    <span x-show="emails[key].audits.plain==='stale'">↻</span>
+                    <span x-show="['PASS','1 fix','FAIL'].includes(emails[key].audits.plain)" class="w-1.5 h-1.5 rounded-full"
+                      :class="{ 'bg-ok': emails[key].audits.plain==='PASS', 'bg-warn': emails[key].audits.plain==='1 fix', 'bg-bad': emails[key].audits.plain==='FAIL' }"></span>
+                    <span x-text="{
+                      'checking':'plain-lang…',
+                      'stale':'re-check plain-lang',
+                      'PASS':'plain-lang PASS',
+                      '1 fix':'plain-lang 1 fix',
+                      'FAIL':'plain-lang FAIL'
+                    }[emails[key].audits.plain]"></span>
+                  </button>
                 </footer>
               </article>
             </template>
@@ -1460,9 +1467,10 @@ function appState() {
     aiTool: { open:false, x:0, y:0, emailKey:null, range:null, text:'', loading:null },
 
     initCopy() {
-      // Audit initial state for all emails
+      // Audit initial state for all emails (don't mark plain-lang stale on boot —
+      // the seeded values represent the LLM's last-known verdict from initial generation).
       this.$nextTick(() => {
-        ['e1','e2','e3'].forEach(k => this.audit(k));
+        ['e1','e2','e3'].forEach(k => this.audit(k, /*markStale*/false));
       });
       // Selection listener — show toolbar when user highlights within an email body
       document.addEventListener('selectionchange', () => this.handleSelection());
@@ -1598,7 +1606,7 @@ function appState() {
       return clone.innerText;
     },
 
-    audit(key) {
+    audit(key, markStale = true) {
       const raw = this.plainText(key);
       if (!raw) return;
       // mergetag tokens like {first_name} count as a prospect-anchored signal
@@ -1619,14 +1627,21 @@ function appState() {
       this.emails[key].audits.dollar = dollar;
       this.emails[key].audits.spam = spam;
 
-      // Debounced "plain-language" (mock Haiku call)
-      clearTimeout(this.plainTimers[key]);
+      // Plain-language is a real LLM call — never auto-fire. Mark stale on any local change.
+      if (markStale && this.emails[key].audits.plain !== 'checking') {
+        this.emails[key].audits.plain = 'stale';
+      }
+    },
+
+    recheckPlain(key) {
+      const raw = this.plainText(key);
+      const text = raw.replace(/\{[^}]+\}/g, ' ');
       this.emails[key].audits.plain = 'checking';
-      this.plainTimers[key] = setTimeout(() => {
+      // Simulate Haiku roundtrip
+      setTimeout(() => {
         const jargon = /\b(cadence|leverage|optimize|holistic|synergy|stack|paradigm|robust|seamless|frictionless)\b/i.test(text);
-        const stillHasDiff = document.querySelector(`#ebody-${key} .diff-pending`);
-        this.emails[key].audits.plain = jargon ? '1 fix' : (stillHasDiff ? 'checking' : 'PASS');
-      }, 1100);
+        this.emails[key].audits.plain = jargon ? '1 fix' : 'PASS';
+      }, 700 + Math.random() * 300);
     },
 
     regenerateEmail(key) {
