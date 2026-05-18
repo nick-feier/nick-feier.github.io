@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Campaign Pipeline — Web Shell Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          mono: ['"JetBrains Mono"', '"SF Mono"', 'Menlo', 'monospace'],
+          sans: ['"Inter"', '-apple-system', 'sans-serif'],
+        },
+        colors: {
+          bg: { 950: '#08090b', 900: '#0c0d10', 800: '#16181d', 700: '#1d2026' },
+          line: { DEFAULT: '#23272f' },
+          ink: { 50: '#e8eaed', 100: '#c8ccd3', 200: '#9aa0a8', 300: '#6f757e', 400: '#4a4f57' },
+          acc: { DEFAULT: '#7dd3fc', hi: '#22d3ee', warm: '#fbbf24', bad: '#f87171', ok: '#34d399' },
+        }
+      }
+    }
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { -webkit-font-smoothing: antialiased; }
+  .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #2a2d34; border-radius: 99px; }
+  .tag { @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide; }
+  .term-line { @apply font-mono text-[12.5px] leading-[1.6]; }
+  .blink { animation: blink 1.1s steps(2) infinite; }
+  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+  .grid-bg { background-image: radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 18px 18px; }
+</style>
+</head>
+<body class="bg-bg-950 text-ink-50 font-sans antialiased" x-data="{
+  view: 'workspace',
+  workspace: 'si',
+  workspaces: [
+    { slug:'si', name:'Something Inc.', tag:'SI', color:'sky', status:'fresh', turns:8, ctx:14, active:3, replies:1, lastTouch:'2m', isTemplate:true },
+    { slug:'launchnotes', name:'LaunchNotes', tag:'LN', color:'violet', status:'live', turns:31, ctx:47, active:2, replies:0, lastTouch:'14m' },
+    { slug:'proxima', name:'Proxima', tag:'PX', color:'emerald', status:'live', turns:62, ctx:71, active:4, replies:3, lastTouch:'1m' },
+    { slug:'goodwork', name:'Goodwork', tag:'GW', color:'amber', status:'refresh-pending', turns:94, ctx:82, active:2, replies:0, lastTouch:'4m', pendingReason:'Launch alert posted' },
+    { slug:'agility', name:'Agility Networks', tag:'AG', color:'rose', status:'idle', turns:0, ctx:0, active:1, replies:0, lastTouch:'2h' },
+    { slug:'era', name:'ERA', tag:'ER', color:'cyan', status:'live', turns:22, ctx:35, active:5, replies:2, lastTouch:'30s' },
+    { slug:'evolve', name:'Evolve Systems', tag:'EV', color:'fuchsia', status:'live', turns:18, ctx:29, active:1, replies:0, lastTouch:'8m' },
+    { slug:'promptive', name:'Promptive', tag:'PR', color:'teal', status:'idle', turns:0, ctx:0, active:2, replies:0, lastTouch:'1h' },
+    { slug:'nec', name:'Northeast Construction', tag:'NE', color:'orange', status:'live', turns:11, ctx:19, active:0, replies:0, lastTouch:'6m', new:true },
+  ],
+  wizardOpen: false, wizardStep: 1,
+  inspector: 'campaign',
+  termInput: '',
+  showShortcuts: false,
+  showRefreshModal: false,
+  refreshTarget: null,
+  current() { return this.workspaces.find(w => w.slug === this.workspace) || this.workspaces[0] }
+}">
+
+<!-- ────────────────────────────  TOP BAR  ──────────────────────────── -->
+<header class="h-12 flex items-center border-b border-line bg-bg-900 px-3 gap-3 sticky top-0 z-30">
+  <div class="flex items-center gap-2">
+    <div class="w-7 h-7 rounded bg-gradient-to-br from-acc to-acc-hi flex items-center justify-center text-bg-950 font-bold text-xs">CP</div>
+    <span class="font-semibold tracking-tight">Campaign Pipeline</span>
+    <span class="text-ink-300 text-xs">v2 · hetzner-cx32</span>
+  </div>
+
+  <nav class="ml-6 flex gap-1 text-sm">
+    <button @click="view='hub'" :class="view==='hub' ? 'bg-bg-700 text-ink-50' : 'text-ink-200 hover:text-ink-50'" class="px-2.5 py-1 rounded">Hub</button>
+    <button @click="view='workspace'" :class="view==='workspace' ? 'bg-bg-700 text-ink-50' : 'text-ink-200 hover:text-ink-50'" class="px-2.5 py-1 rounded">Workspace</button>
+    <button @click="view='inbox'" :class="view==='inbox' ? 'bg-bg-700 text-ink-50' : 'text-ink-200 hover:text-ink-50'" class="px-2.5 py-1 rounded">
+      Inbox
+      <span class="ml-1 text-[10px] bg-acc-warm text-bg-950 rounded px-1 font-semibold">6</span>
+    </button>
+    <button @click="view='telemetry'" :class="view==='telemetry' ? 'bg-bg-700 text-ink-50' : 'text-ink-200 hover:text-ink-50'" class="px-2.5 py-1 rounded">Telemetry</button>
+    <button @click="view='financial'" :class="view==='financial' ? 'bg-bg-700 text-ink-50' : 'text-ink-200 hover:text-ink-50'" class="px-2.5 py-1 rounded">Financial</button>
+    <button @click="view='settings'" :class="view==='settings' ? 'bg-bg-700 text-ink-50' : 'text-ink-200 hover:text-ink-50'" class="px-2.5 py-1 rounded">Settings</button>
+  </nav>
+
+  <div class="flex-1"></div>
+
+  <div class="flex items-center gap-2 text-xs text-ink-200">
+    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-acc-ok rounded-full"></span>9 CC sessions</span>
+    <span class="text-ink-400">·</span>
+    <span>Backups: 03:14 ago</span>
+    <span class="text-ink-400">·</span>
+    <span>n8n: <span class="text-acc-ok">healthy</span></span>
+    <span class="text-ink-400">·</span>
+    <span>deliv srv: <span class="text-acc-ok">healthy</span></span>
+  </div>
+
+  <button @click="showShortcuts=true" class="ml-3 text-ink-200 hover:text-ink-50 text-xs border border-line rounded px-2 py-1">⌘K</button>
+  <div class="w-7 h-7 rounded-full bg-bg-700 flex items-center justify-center text-xs font-semibold">N</div>
+</header>
+
+<!-- ────────────────────────────  HUB VIEW  ──────────────────────────── -->
+<main x-show="view==='hub'" class="grid-bg min-h-[calc(100vh-3rem)]">
+  <div class="max-w-[1400px] mx-auto p-6 space-y-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold">Hub</h1>
+        <p class="text-ink-200 text-sm">Cross-workspace overview · {{ workspaces.length }} clients · refreshed 12 seconds ago</p>
+      </div>
+      <div class="flex gap-2">
+        <button class="px-3 py-1.5 rounded border border-line bg-bg-800 hover:bg-bg-700 text-sm">Refresh all telemetry</button>
+        <button class="px-3 py-1.5 rounded bg-acc text-bg-950 font-medium text-sm">+ New campaign</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <template x-for="kpi in [
+        {label:'Active campaigns', value:20, sub:'across 8 workspaces', tone:''},
+        {label:'Sends (7d)', value:'92,140', sub:'1.4% positive', tone:'ok'},
+        {label:'Positive replies (7d)', value:48, sub:'6 unread in inbox', tone:'warm'},
+        {label:'Bounces (7d)', value:'0.9%', sub:'within target', tone:'ok'},
+        {label:'Spend (MTD)', value:'€2,418', sub:'vs €2,810 budget', tone:''}
+      ]">
+        <div class="bg-bg-900 border border-line rounded-lg p-4">
+          <div class="text-xs uppercase tracking-wide text-ink-300" x-text="kpi.label"></div>
+          <div class="text-2xl font-semibold mt-1" x-text="kpi.value"></div>
+          <div class="text-xs mt-1" :class="kpi.tone==='ok'?'text-acc-ok':kpi.tone==='warm'?'text-acc-warm':'text-ink-300'" x-text="kpi.sub"></div>
+        </div>
+      </template>
+    </div>
+
+    <!-- workspace cards -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-ink-300">Workspaces</h2>
+        <span class="text-xs text-ink-300">Click to open · long-press to refresh CC</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <template x-for="ws in workspaces" :key="ws.slug">
+          <div @click="workspace=ws.slug; view='workspace'" class="bg-bg-900 border border-line hover:border-acc/40 rounded-lg p-4 cursor-pointer transition">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded font-mono text-xs font-bold flex items-center justify-center" :class="{
+                  'bg-sky-500/15 text-sky-300':ws.color==='sky','bg-violet-500/15 text-violet-300':ws.color==='violet',
+                  'bg-emerald-500/15 text-emerald-300':ws.color==='emerald','bg-amber-500/15 text-amber-300':ws.color==='amber',
+                  'bg-rose-500/15 text-rose-300':ws.color==='rose','bg-cyan-500/15 text-cyan-300':ws.color==='cyan',
+                  'bg-fuchsia-500/15 text-fuchsia-300':ws.color==='fuchsia','bg-teal-500/15 text-teal-300':ws.color==='teal',
+                  'bg-orange-500/15 text-orange-300':ws.color==='orange'
+                }" x-text="ws.tag"></div>
+                <div>
+                  <div class="font-medium flex items-center gap-2">
+                    <span x-text="ws.name"></span>
+                    <span x-show="ws.isTemplate" class="tag bg-acc/10 text-acc">template</span>
+                    <span x-show="ws.new" class="tag bg-acc-warm/15 text-acc-warm">new</span>
+                  </div>
+                  <div class="text-xs text-ink-300 flex items-center gap-2">
+                    <span x-show="ws.status==='live'" class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-acc-ok rounded-full"></span>live · <span x-text="ws.turns + ' turns · ' + ws.ctx + '% ctx'"></span></span>
+                    <span x-show="ws.status==='fresh'" class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-acc rounded-full"></span>fresh session</span>
+                    <span x-show="ws.status==='idle'" class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-ink-300 rounded-full"></span>idle · last touch <span x-text="ws.lastTouch"></span></span>
+                    <span x-show="ws.status==='refresh-pending'" class="flex items-center gap-1 text-acc-warm"><span class="w-1.5 h-1.5 bg-acc-warm rounded-full blink"></span>refreshing — <span x-text="ws.pendingReason"></span></span>
+                  </div>
+                </div>
+              </div>
+              <button @click.stop="refreshTarget=ws; showRefreshModal=true" class="text-ink-300 hover:text-ink-50 text-xs">↻</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mt-4 text-xs">
+              <div class="bg-bg-800 rounded p-2">
+                <div class="text-ink-300">active</div>
+                <div class="text-lg font-semibold" x-text="ws.active"></div>
+              </div>
+              <div class="bg-bg-800 rounded p-2">
+                <div class="text-ink-300">replies</div>
+                <div class="text-lg font-semibold" :class="ws.replies>0?'text-acc-warm':''" x-text="ws.replies"></div>
+              </div>
+              <div class="bg-bg-800 rounded p-2">
+                <div class="text-ink-300">last touch</div>
+                <div class="text-lg font-semibold" x-text="ws.lastTouch"></div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- live activity feed -->
+    <div>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-ink-300 mb-3">Live activity</h2>
+      <div class="bg-bg-900 border border-line rounded-lg divide-y divide-line">
+        <template x-for="item in [
+          {ts:'10:47:12', ws:'Proxima', tag:'PX', color:'emerald', kind:'reply', msg:'Positive reply on Campaign 187 (Demand Gen Lifecycle) from Lacey Howard, Webflow'},
+          {ts:'10:46:30', ws:'Goodwork', tag:'GW', color:'amber', kind:'launch', msg:'Launch alert posted · Campaign 412 V2 SEO Agencies · CC auto-refresh queued'},
+          {ts:'10:42:01', ws:'Northeast Construction', tag:'NE', color:'orange', kind:'pipeline', msg:'Pipeline complete · 487/1200 verified leads · waterfall hit 41% find rate'},
+          {ts:'10:38:55', ws:'SI', tag:'SI', color:'sky', kind:'qa', msg:'QA #4 written for Campaign 222 at 14d · BLOCK on segment SEG9 — operator review needed'},
+          {ts:'10:31:18', ws:'ERA', tag:'ER', color:'cyan', kind:'scrape', msg:'Apollo scrape stalled at 7811/12000 — heartbeat ok, throttle suspected'},
+          {ts:'10:28:02', ws:'LaunchNotes', tag:'LN', color:'violet', kind:'reply', msg:'Positive reply on Campaign 241 (DEL-12) — calendar-booked, no operator action needed'},
+          {ts:'10:14:44', ws:'Proxima', tag:'PX', color:'emerald', kind:'reply', msg:'Positive reply on Campaign 189 (Lifecycle Ops) · suggested-reply draft ready in inbox'},
+        ]">
+          <div class="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-bg-800/50">
+            <span class="font-mono text-xs text-ink-300 w-16" x-text="item.ts"></span>
+            <span class="w-7 h-5 rounded font-mono text-[10px] font-bold flex items-center justify-center" :class="{
+              'bg-sky-500/15 text-sky-300':item.color==='sky','bg-violet-500/15 text-violet-300':item.color==='violet',
+              'bg-emerald-500/15 text-emerald-300':item.color==='emerald','bg-amber-500/15 text-amber-300':item.color==='amber',
+              'bg-cyan-500/15 text-cyan-300':item.color==='cyan','bg-orange-500/15 text-orange-300':item.color==='orange'
+            }" x-text="item.tag"></span>
+            <span class="tag" :class="{
+              'bg-acc-warm/15 text-acc-warm':item.kind==='reply',
+              'bg-acc-ok/15 text-acc-ok':item.kind==='launch',
+              'bg-acc/15 text-acc':item.kind==='pipeline'||item.kind==='scrape',
+              'bg-acc-bad/15 text-acc-bad':item.kind==='qa',
+            }" x-text="item.kind"></span>
+            <span class="text-ink-100 flex-1" x-text="item.msg"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ────────────────────────────  WORKSPACE VIEW  ──────────────────────────── -->
+<main x-show="view==='workspace'" class="flex h-[calc(100vh-3rem)]">
+
+  <!-- LEFT: workspace switcher + nav -->
+  <aside class="w-60 border-r border-line bg-bg-900 flex flex-col">
+    <div class="p-3 border-b border-line">
+      <div class="text-[10px] uppercase tracking-wider text-ink-300 mb-1.5">Workspaces</div>
+      <div class="space-y-0.5 max-h-[260px] overflow-y-auto scroll-thin">
+        <template x-for="ws in workspaces" :key="ws.slug">
+          <button @click="workspace=ws.slug" class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-bg-800 transition" :class="workspace===ws.slug ? 'bg-bg-700 text-ink-50' : 'text-ink-100'">
+            <div class="w-5 h-5 rounded font-mono text-[10px] font-bold flex items-center justify-center" :class="{
+              'bg-sky-500/15 text-sky-300':ws.color==='sky','bg-violet-500/15 text-violet-300':ws.color==='violet',
+              'bg-emerald-500/15 text-emerald-300':ws.color==='emerald','bg-amber-500/15 text-amber-300':ws.color==='amber',
+              'bg-rose-500/15 text-rose-300':ws.color==='rose','bg-cyan-500/15 text-cyan-300':ws.color==='cyan',
+              'bg-fuchsia-500/15 text-fuchsia-300':ws.color==='fuchsia','bg-teal-500/15 text-teal-300':ws.color==='teal',
+              'bg-orange-500/15 text-orange-300':ws.color==='orange'
+            }" x-text="ws.tag"></div>
+            <span class="truncate flex-1 text-left" x-text="ws.name"></span>
+            <span x-show="ws.replies>0" class="text-[10px] bg-acc-warm/20 text-acc-warm rounded px-1 font-semibold" x-text="ws.replies"></span>
+            <span x-show="ws.status==='live'" class="w-1.5 h-1.5 bg-acc-ok rounded-full"></span>
+            <span x-show="ws.status==='refresh-pending'" class="w-1.5 h-1.5 bg-acc-warm rounded-full blink"></span>
+            <span x-show="ws.status==='fresh'" class="w-1.5 h-1.5 bg-acc rounded-full"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <nav class="p-3 space-y-0.5 text-sm">
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded bg-bg-700 text-ink-50"><span class="w-1 h-4 bg-acc rounded-full"></span>Terminal</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Campaigns</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Files <span class="ml-auto text-[10px] text-ink-300">·  /work</span></a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Lead lists</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Intelligence</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Program Overview</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Voice profile</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Deliverable library</a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Memory <span class="ml-auto text-[10px] text-ink-300">142 entries</span></a>
+      <a class="flex items-center gap-2 px-2 py-1.5 rounded text-ink-100 hover:bg-bg-800">Backups</a>
+    </nav>
+
+    <div class="mt-auto p-3 border-t border-line">
+      <div class="text-[10px] uppercase tracking-wider text-ink-300 mb-2">CC session</div>
+      <div class="space-y-1 text-xs">
+        <div class="flex justify-between"><span class="text-ink-200">status</span><span class="text-acc-ok">● live</span></div>
+        <div class="flex justify-between"><span class="text-ink-200">turns</span><span class="font-mono" x-text="current().turns"></span></div>
+        <div class="flex justify-between"><span class="text-ink-200">context</span><span class="font-mono" x-text="current().ctx + '%'"></span></div>
+        <div class="flex justify-between"><span class="text-ink-200">model</span><span class="font-mono">opus-4.7</span></div>
+        <div class="flex justify-between"><span class="text-ink-200">uptime</span><span class="font-mono">2h 14m</span></div>
+      </div>
+      <div class="mt-2 h-1 bg-bg-800 rounded overflow-hidden">
+        <div class="h-full" :class="current().ctx<60?'bg-acc-ok':current().ctx<80?'bg-acc-warm':'bg-acc-bad'" :style="`width:${current().ctx}%`"></div>
+      </div>
+      <button @click="refreshTarget=current(); showRefreshModal=true" class="mt-3 w-full text-xs py-1.5 rounded border border-line bg-bg-800 hover:bg-bg-700">Refresh CC</button>
+    </div>
+  </aside>
+
+  <!-- CENTER: terminal + status -->
+  <section class="flex-1 flex flex-col bg-bg-950 min-w-0">
+    <!-- workspace breadcrumb -->
+    <div class="h-10 px-4 flex items-center justify-between border-b border-line text-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-6 h-6 rounded font-mono text-[10px] font-bold flex items-center justify-center" :class="{
+          'bg-sky-500/15 text-sky-300':current().color==='sky','bg-violet-500/15 text-violet-300':current().color==='violet',
+          'bg-emerald-500/15 text-emerald-300':current().color==='emerald','bg-amber-500/15 text-amber-300':current().color==='amber',
+          'bg-rose-500/15 text-rose-300':current().color==='rose','bg-cyan-500/15 text-cyan-300':current().color==='cyan',
+          'bg-fuchsia-500/15 text-fuchsia-300':current().color==='fuchsia','bg-teal-500/15 text-teal-300':current().color==='teal',
+          'bg-orange-500/15 text-orange-300':current().color==='orange'
+        }" x-text="current().tag"></div>
+        <span class="font-medium" x-text="current().name"></span>
+        <span class="text-ink-300">·</span>
+        <span class="text-ink-200">/work</span>
+        <span class="text-ink-300">·</span>
+        <span class="text-ink-200">cc-<span x-text="current().slug"></span>.service</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="wizardOpen=true; wizardStep=1" class="text-xs px-2 py-1 rounded bg-acc text-bg-950 font-medium">+ New campaign</button>
+        <button class="text-xs px-2 py-1 rounded border border-line hover:bg-bg-800">Re-attach</button>
+        <button class="text-xs px-2 py-1 rounded border border-line hover:bg-bg-800">Detach</button>
+      </div>
+    </div>
+
+    <!-- terminal -->
+    <div class="flex-1 px-4 pt-3 overflow-y-auto scroll-thin">
+      <div class="space-y-0.5">
+        <div class="term-line text-ink-300">$ tmux attach -t cc-si · ws=si · ctx 14% · turn 8 of session</div>
+        <div class="term-line text-ink-300">─────────────────────────────────────────────────────────────</div>
+        <div class="term-line"><span class="text-acc">user</span><span class="text-ink-300"> ›</span> /research saas-customer-success</div>
+        <div class="term-line text-acc-warm">↳ invoking research skill on segment 'saas-customer-success'…</div>
+        <div class="term-line text-ink-100">Loaded PO ICP4 × SEG9 (B2B SaaS Customer Success leadership). Pulling intelligence/case_studies_by_segment.md anchor list.</div>
+        <div class="term-line text-ink-100">Found anchors: Gainsight, Catalyst, Vitally. Discolike returns 1,402 fit companies in segment.</div>
+        <div class="term-line text-ink-100">Drafting 9-section paper + combinations matrix…</div>
+        <div class="term-line text-ink-100">→ wrote segments/saas-customer-success/research-paper.md (8,142 words)</div>
+        <div class="term-line text-ink-100">→ wrote segments/saas-customer-success/combinations-matrix.md (top-5 PP×VP×CS×LM ranked)</div>
+        <div class="term-line text-ink-100">→ rendered + deployed client-facing research_brief HTML to si.netlify.app/research/saas-customer-success.html</div>
+        <div class="term-line text-acc-ok">✓ research complete · linked into program_overview.xlsx Segments tab</div>
+        <div class="term-line">&nbsp;</div>
+        <div class="term-line"><span class="text-acc">user</span><span class="text-ink-300"> ›</span> /offer ICP4 SEG9 PP12 VP7 CS22 LM5</div>
+        <div class="term-line text-acc-warm">↳ invoking offer skill…</div>
+        <div class="term-line text-ink-100">Validating component IDs against PO Change Log… all approved.</div>
+        <div class="term-line text-ink-100">Front-end offer determined: "first-30-day playbook + audit". Carrot: "see what 4 of our last 7 CS retentions hinge on".</div>
+        <div class="term-line text-ink-100">Drafting Hormozi offer sentence + carrot framing…</div>
+        <div class="term-line text-acc-ok">✓ offer spec written to segments/saas-customer-success/offer.spec.json — review before /copy</div>
+        <div class="term-line">&nbsp;</div>
+        <div class="term-line"><span class="text-acc">user</span><span class="text-ink-300"> ›</span> approved. /copy</div>
+        <div class="term-line text-acc-warm">↳ invoking copy skill on offer.spec.json…</div>
+        <div class="term-line text-ink-100">Pre-flight bank check: 4 Active DELs covering E1/E2/E3 for front-end offer · OK</div>
+        <div class="term-line text-ink-100">Drafting E1 (CTA-led ASK + CREDIBILITY)…</div>
+        <div class="term-line text-ink-100">E1 word count 31/40 · 2:1 prospect/us audit: 6/2 (PASS) · spam audit: PASS · readability: PASS</div>
+        <div class="term-line text-ink-100">Drafting E2 (PROOF + NEXT-STEP ASK with second DEL)…</div>
+        <div class="term-line text-ink-100">E2 word count 28/40 · 2:1 audit: 5/2 (PASS) · plain-language pass: 1 rewrite ("4x'd cadence" → "releases 4x more features")</div>
+        <div class="term-line text-ink-100">Drafting E3 (Shape A: third DEL + permission ask)…</div>
+        <div class="term-line text-ink-100">E3 word count 18/25 · 2:1 audit: 4/1 (PASS)</div>
+        <div class="term-line text-acc-ok">✓ copy_doc.spec.json written · render preview: segments/saas-customer-success/copy_doc.txt</div>
+        <div class="term-line">&nbsp;</div>
+        <div class="term-line text-ink-300">Inspector pane → switch to <span class="text-acc">Copy preview</span> to review E1/E2/E3 with audits.</div>
+        <div class="term-line">&nbsp;</div>
+        <div class="term-line"><span class="text-acc">user</span><span class="text-ink-300"> ›</span> <span class="blink text-ink-50">▋</span></div>
+      </div>
+    </div>
+
+    <!-- terminal input -->
+    <div class="px-4 py-3 border-t border-line">
+      <div class="flex items-center gap-2 bg-bg-900 border border-line rounded px-3 py-2 focus-within:border-acc">
+        <span class="text-ink-300 font-mono text-sm">user ›</span>
+        <input x-model="termInput" type="text" placeholder="Type a slash command, ask a question, or describe a task…" class="flex-1 bg-transparent outline-none font-mono text-sm placeholder:text-ink-300" />
+        <span class="text-xs text-ink-300">⏎ to send · ⇧⏎ for newline</span>
+      </div>
+      <div class="flex gap-2 mt-2 flex-wrap text-xs">
+        <span class="text-ink-300">Quick:</span>
+        <button class="text-acc hover:underline">/research</button>
+        <button class="text-acc hover:underline">/offer</button>
+        <button class="text-acc hover:underline">/copy</button>
+        <button class="text-acc hover:underline">/targeting</button>
+        <button class="text-acc hover:underline">/sourcing</button>
+        <button class="text-acc hover:underline">/pipeline</button>
+        <button class="text-acc hover:underline">/qa</button>
+        <button class="text-acc hover:underline">/technical</button>
+        <button class="text-acc hover:underline">/financial</button>
+        <button class="text-acc hover:underline">/finish</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: inspector -->
+  <aside class="w-[420px] border-l border-line bg-bg-900 flex flex-col">
+    <div class="flex border-b border-line text-xs">
+      <button @click="inspector='campaign'" :class="inspector==='campaign'?'bg-bg-800 text-ink-50 border-b border-acc':'text-ink-200'" class="px-3 py-2.5 flex-1">Pipeline</button>
+      <button @click="inspector='copy'" :class="inspector==='copy'?'bg-bg-800 text-ink-50 border-b border-acc':'text-ink-200'" class="px-3 py-2.5 flex-1">Copy preview</button>
+      <button @click="inspector='files'" :class="inspector==='files'?'bg-bg-800 text-ink-50 border-b border-acc':'text-ink-200'" class="px-3 py-2.5 flex-1">Files</button>
+      <button @click="inspector='memory'" :class="inspector==='memory'?'bg-bg-800 text-ink-50 border-b border-acc':'text-ink-200'" class="px-3 py-2.5 flex-1">Memory</button>
+    </div>
+
+    <!-- Pipeline inspector -->
+    <div x-show="inspector==='campaign'" class="flex-1 overflow-y-auto scroll-thin p-4 space-y-4">
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-ink-300 mb-1">In progress</div>
+        <div class="bg-bg-800 border border-line rounded p-3">
+          <div class="font-medium">Customer Success — Mid-Market SaaS</div>
+          <div class="text-xs text-ink-300 mt-0.5">ICP4 × SEG9 · started 38 min ago · operator: nick</div>
+        </div>
+      </div>
+
+      <div class="space-y-1.5">
+        <template x-for="(step, i) in [
+          {label:'Brief intake', state:'done', meta:'Inferred from PO row + telemetry'},
+          {label:'Research paper', state:'done', meta:'8,142 words · 5 combos ranked'},
+          {label:'Offer spec', state:'done', meta:'30-day playbook + audit'},
+          {label:'Copy draft (E1/E2/E3)', state:'done', meta:'All audits PASS · awaiting approval'},
+          {label:'Operator copy review', state:'active', meta:'Open the Copy preview tab →'},
+          {label:'Targeting filters', state:'pending', meta:'Apollo + Discolike planned'},
+          {label:'Recycle pass', state:'pending', meta:'Pre-scrape · 60d cool-off'},
+          {label:'Sourcing scrape', state:'pending', meta:'Apollo · target ~3,200 raw'},
+          {label:'Cleaned leads + QA #3', state:'pending', meta:'Intra-rotation filter mandatory'},
+          {label:'Pipeline (waterfall + verify)', state:'pending', meta:'TryKitt → Blitz → LeadMagic → Prospeo → MV'},
+          {label:'Learning-layer gate', state:'pending', meta:'Blocking · PASS / WARN / BLOCK'},
+          {label:'EB push + hypothesis log', state:'pending', meta:''},
+          {label:'Slack launch alert', state:'pending', meta:'Triggers CC auto-refresh ⟳'},
+        ]" :key="i">
+          <div class="flex items-start gap-3 text-sm">
+            <div class="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="{
+              'bg-acc-ok/15 text-acc-ok':step.state==='done',
+              'bg-acc-warm/15 text-acc-warm blink':step.state==='active',
+              'bg-bg-800 text-ink-300':step.state==='pending'
+            }" x-text="step.state==='done'?'✓':step.state==='active'?'●':'○'"></div>
+            <div class="flex-1">
+              <div :class="step.state==='active'?'text-acc-warm font-medium':step.state==='done'?'text-ink-100':'text-ink-200'" x-text="step.label"></div>
+              <div class="text-xs text-ink-300" x-show="step.meta" x-text="step.meta"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="border-t border-line pt-3 mt-4">
+        <div class="text-[10px] uppercase tracking-wider text-ink-300 mb-1">Active campaigns (3)</div>
+        <div class="space-y-1.5">
+          <template x-for="c in [
+            {id:241, name:'V2 Demand Gen Lifecycle', sent:842, reply:1.4, pos:0.6},
+            {id:222, name:'V2 Marketing Agencies', sent:2418, reply:0.76, pos:0.25},
+            {id:198, name:'Sales Leadership ICP1', sent:512, reply:1.1, pos:0.4},
+          ]">
+            <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-800 text-sm">
+              <span class="font-mono text-xs text-ink-300">#<span x-text="c.id"></span></span>
+              <span class="flex-1 truncate" x-text="c.name"></span>
+              <span class="font-mono text-xs text-ink-200" x-text="c.sent + ' sent'"></span>
+              <span class="font-mono text-xs" :class="c.pos>0.5?'text-acc-ok':'text-ink-200'" x-text="c.pos + '% pos'"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Copy preview inspector -->
+    <div x-show="inspector==='copy'" class="flex-1 overflow-y-auto scroll-thin p-4 space-y-3">
+      <div class="text-[10px] uppercase tracking-wider text-ink-300">E1 · cold open</div>
+      <div class="bg-bg-800 border border-line rounded p-3 text-sm font-mono leading-relaxed">
+        <div class="text-ink-300 text-xs mb-2">Subject: a 30-day playbook</div>
+        <div>{first_name} -</div>
+        <div class="mt-2">could I send over our 30-day CS playbook that Gainsight used to recover 4.2M in stalled renewals last quarter?</div>
+        <div class="mt-2">Their team runs it as a one-page risk audit at day 14 — surfaces the accounts most likely to slip before the QBR even lands.</div>
+        <div class="mt-2 text-ink-200">Nick Feier<br/>Co-Founder | Something Inc.</div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-[10px]">
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">words</div>
+          <div class="font-mono text-base text-acc-ok">31/40</div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">prospect : us</div>
+          <div class="font-mono text-base text-acc-ok">6 : 2</div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">spam audit</div>
+          <div class="font-mono text-base text-acc-ok">PASS</div>
+        </div>
+      </div>
+
+      <div class="text-[10px] uppercase tracking-wider text-ink-300 mt-4">E2 · thread reply · day 2</div>
+      <div class="bg-bg-800 border border-line rounded p-3 text-sm font-mono leading-relaxed">
+        <div>{first_name},</div>
+        <div class="mt-2">Vitally ran the same play and clawed back 14 at-risk accounts inside 30 days — the gain came from the day-14 audit catching silent feature-drop signals.</div>
+        <div class="mt-2">If your QBR cadence keeps missing the silent risk, could I send over the audit template we used with them?</div>
+        <div class="mt-2 text-ink-200">Nick</div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-[10px]">
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">words</div>
+          <div class="font-mono text-base text-acc-ok">28/40</div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">prospect : us</div>
+          <div class="font-mono text-base text-acc-ok">5 : 2</div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">plain-language</div>
+          <div class="font-mono text-base text-acc-warm">1 fix</div>
+        </div>
+      </div>
+
+      <div class="text-[10px] uppercase tracking-wider text-ink-300 mt-4">E3 · thread reply · day 4 · Shape A</div>
+      <div class="bg-bg-800 border border-line rounded p-3 text-sm font-mono leading-relaxed">
+        <div>Catalyst's CS team uses our QBR risk-scoring rubric to triage 200 accounts in under an hour every Monday.</div>
+        <div class="mt-2">Mind if I drop that rubric in your inbox?</div>
+        <div class="mt-2 text-ink-200">Nick</div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-[10px]">
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">words</div>
+          <div class="font-mono text-base text-acc-ok">18/25</div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">prospect : us</div>
+          <div class="font-mono text-base text-acc-ok">4 : 1</div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-2 text-center">
+          <div class="text-ink-300">deliverables</div>
+          <div class="font-mono text-base text-acc-ok">3 distinct</div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 mt-4">
+        <button class="flex-1 py-2 rounded bg-acc text-bg-950 font-medium text-sm">Approve · continue to Targeting</button>
+        <button class="px-3 py-2 rounded border border-line text-sm">Iterate</button>
+      </div>
+    </div>
+
+    <!-- Files inspector -->
+    <div x-show="inspector==='files'" class="flex-1 overflow-y-auto scroll-thin p-3 text-sm font-mono">
+      <div class="text-ink-300 text-xs px-1 mb-2">/work · 4,128 files · 612 MB</div>
+      <template x-for="f in [
+        {p:'CLAUDE.md', s:'14 KB', kind:'doc'},
+        {p:'program_overview.xlsx', s:'430 KB', kind:'po'},
+        {p:'voice_profile.md', s:'8 KB', kind:'doc'},
+        {p:'scraped_website.md', s:'168 KB', kind:'doc'},
+        {p:'intelligence/', s:'42 entries', kind:'dir'},
+        {p:'  campaign_learnings.md', s:'94 KB', kind:'doc'},
+        {p:'  case_study_library.md', s:'28 KB', kind:'doc'},
+        {p:'  deliverable_library.md', s:'18 KB', kind:'doc'},
+        {p:'  reply_signals.md', s:'12 KB', kind:'doc'},
+        {p:'  telemetry/LATEST.md', s:'6 KB', kind:'doc'},
+        {p:'segments/', s:'7 dirs', kind:'dir'},
+        {p:'  saas-customer-success/', s:'4 files', kind:'dir'},
+        {p:'    research-paper.md', s:'42 KB', kind:'doc', new:true},
+        {p:'    offer.spec.json', s:'2 KB', kind:'spec', new:true},
+        {p:'    copy_doc.spec.json', s:'4 KB', kind:'spec', new:true},
+        {p:'    copy_doc.txt', s:'3 KB', kind:'doc', new:true},
+        {p:'lists/Leads/', s:'8 dirs', kind:'dir'},
+        {p:'tools/', s:'62 files', kind:'dir'},
+      ]">
+        <div class="px-1 py-1 hover:bg-bg-800 rounded flex items-center gap-2 text-[12.5px]">
+          <span class="text-ink-300" x-text="f.kind==='dir'?'▸':' '"></span>
+          <span class="flex-1" x-text="f.p"></span>
+          <span x-show="f.new" class="tag bg-acc-warm/15 text-acc-warm">new</span>
+          <span class="text-ink-300 text-xs" x-text="f.s"></span>
+        </div>
+      </template>
+    </div>
+
+    <!-- Memory inspector -->
+    <div x-show="inspector==='memory'" class="flex-1 overflow-y-auto scroll-thin p-3 text-sm">
+      <div class="text-ink-300 text-xs mb-2">142 entries · last write 2026-05-18</div>
+      <template x-for="m in [
+        {title:'PO compiler step', date:'2026-05-18', type:'project'},
+        {title:'ESP routing: other→google bucket', date:'2026-05-17', type:'project'},
+        {title:'EB signatures bulk-updated', date:'2026-05-17', type:'project'},
+        {title:'cta_kind doctrine', date:'2026-05-17', type:'project'},
+        {title:'Launch alert sample deliverable', date:'2026-05-17', type:'project'},
+        {title:'Plain-language pass on copy drafts', date:'2026-05-16', type:'feedback'},
+        {title:'Compact weekly report template', date:'2026-05-16', type:'project'},
+        {title:'Deliverable-rotation cadence proposal', date:'2026-05-16', type:'project'},
+        {title:'Conditional CTA + no $ symbol', date:'2026-05-12', type:'feedback'},
+        {title:'Paragraph-function cadence', date:'2026-05-12', type:'feedback'},
+      ]">
+        <div class="border border-line rounded p-2 mb-1.5 hover:bg-bg-800">
+          <div class="flex items-center gap-2">
+            <span class="tag" :class="m.type==='feedback'?'bg-acc/15 text-acc':'bg-acc-warm/15 text-acc-warm'" x-text="m.type"></span>
+            <span class="text-ink-300 text-xs" x-text="m.date"></span>
+          </div>
+          <div class="mt-1 text-ink-100 leading-snug" x-text="m.title"></div>
+        </div>
+      </template>
+    </div>
+  </aside>
+</main>
+
+<!-- ────────────────────────────  INBOX VIEW  ──────────────────────────── -->
+<main x-show="view==='inbox'" class="max-w-[1400px] mx-auto p-6 space-y-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Positive-reply inbox</h1>
+    <p class="text-ink-200 text-sm">Cross-workspace · 6 unread · each card carries Claude-drafted suggested reply + asset link</p>
+  </div>
+
+  <div class="space-y-2">
+    <template x-for="r in [
+      {ws:'Proxima', tag:'PX', color:'emerald', name:'Lacey Howard', co:'Webflow', title:'Sr Lifecycle Marketing Lead', when:'12 min ago', step:'E2',
+       msg:'Yes — would love to see the audit template. We just had a Q1 churn spike on the SMB cohort and the on-cycle reviews missed every account.',
+       cta:'Build per-lead audit · deploy to Netlify · paste signed URL into reply',
+       suggested:'Lacey — pulling the audit now with your last 60-day churn signal pattern overlaid. Will send within an hour. — Nick'},
+      {ws:'Goodwork', tag:'GW', color:'amber', name:'Marcus Chen', co:'Hyland Software', title:'VP Customer Experience', when:'42 min ago', step:'E1',
+       msg:'Interesting. Send the playbook.',
+       cta:'Asset already produced (DEL-7) · paste URL into reply',
+       suggested:'Marcus — here it is: <playbook URL>. Quick note — the day-14 step is what most CS teams skip; that\\'s usually where the lift sits. — Nick'},
+      {ws:'Proxima', tag:'PX', color:'emerald', name:'Jonas Becker', co:'Notion', title:'Lifecycle Ops', when:'1h ago', step:'E2',
+       msg:'Send the play. Curious what the day-14 audit covers exactly.',
+       cta:'Drop DEL-12 personalized HTML build',
+       suggested:'Jonas — building the day-14 audit for your last release cohort right now. URL in your inbox in ~20 min. — Nick'},
+      {ws:'ERA', tag:'ER', color:'cyan', name:'Priya Shah', co:'Ramp', title:'Demand Gen Director', when:'2h ago', step:'E3',
+       msg:'I\\'m not the right person — Sarah Lee runs lifecycle. Looping her in.',
+       cta:'Reroute · note in CRM · pause sequence to Priya',
+       suggested:'Thanks Priya — appreciate the intro. Sarah, I\\'ll send the rubric over separately so you\\'ve got context. — Nick'},
+      {ws:'SI', tag:'SI', color:'sky', name:'Aaron Klein', co:'Vercel', title:'Head of Growth', when:'3h ago', step:'E2',
+       msg:'Sure, send it over. Also curious how you measure attribution back to the audit specifically.',
+       cta:'Build per-lead audit + attribution note · deploy',
+       suggested:'Aaron — sending the audit now. On attribution, we tie the playbook recommendations to QBR notes so you can trace which CS plays correlate to retention lift. Audit URL in 30 min. — Nick'},
+      {ws:'LaunchNotes', tag:'LN', color:'violet', name:'Sasha Vahidi', co:'PostHog', title:'VP Product', when:'5h ago', step:'E1',
+       msg:'Calendar booked for next Thursday.',
+       cta:'No action — calendar handler already created CRM entry',
+       suggested:''},
+    ]">
+      <div class="bg-bg-900 border border-line rounded-lg p-4">
+        <div class="flex items-start gap-4">
+          <div class="w-9 h-9 rounded font-mono text-xs font-bold flex items-center justify-center" :class="{
+            'bg-sky-500/15 text-sky-300':r.color==='sky','bg-violet-500/15 text-violet-300':r.color==='violet',
+            'bg-emerald-500/15 text-emerald-300':r.color==='emerald','bg-amber-500/15 text-amber-300':r.color==='amber',
+            'bg-cyan-500/15 text-cyan-300':r.color==='cyan'
+          }" x-text="r.tag"></div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-medium" x-text="r.name"></span>
+              <span class="text-ink-300">·</span>
+              <span class="text-ink-200" x-text="r.title + ' @ ' + r.co"></span>
+              <span class="tag bg-bg-800 text-ink-200" x-text="'replied on ' + r.step"></span>
+              <span class="text-ink-300 text-xs ml-auto" x-text="r.when"></span>
+            </div>
+            <div class="mt-2 text-ink-100 italic">"<span x-text="r.msg"></span>"</div>
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <div class="bg-bg-800 border border-line rounded p-3">
+                <div class="text-[10px] uppercase tracking-wider text-ink-300">Suggested action</div>
+                <div class="mt-1 text-sm" x-text="r.cta"></div>
+              </div>
+              <div class="bg-bg-800 border border-line rounded p-3">
+                <div class="text-[10px] uppercase tracking-wider text-ink-300">Claude-drafted reply</div>
+                <div class="mt-1 text-sm font-mono leading-snug" x-text="r.suggested || '—'"></div>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button class="px-3 py-1.5 rounded bg-acc text-bg-950 text-sm font-medium">Approve + send</button>
+              <button class="px-3 py-1.5 rounded border border-line text-sm">Edit draft</button>
+              <button class="px-3 py-1.5 rounded border border-line text-sm">Build asset first</button>
+              <button class="px-3 py-1.5 rounded border border-line text-sm text-ink-200">Snooze</button>
+              <button class="px-3 py-1.5 rounded border border-line text-sm text-ink-200">Mark handled</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</main>
+
+<!-- ────────────────────────────  TELEMETRY VIEW  ──────────────────────────── -->
+<main x-show="view==='telemetry'" class="max-w-[1400px] mx-auto p-6 space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Telemetry</h1>
+    <p class="text-ink-200 text-sm">Auto-synced every 15 min by <span class="font-mono">eb_telemetry_sync.py</span> · last run 4 min ago</p>
+  </div>
+
+  <div class="grid grid-cols-4 gap-3">
+    <template x-for="kpi in [
+      {label:'Sends 24h', value:'14,820', tone:''},
+      {label:'Bounce', value:'0.7%', tone:'ok'},
+      {label:'Reply rate', value:'1.32%', tone:'ok'},
+      {label:'Positive', value:'0.42%', tone:'ok'},
+    ]">
+      <div class="bg-bg-900 border border-line rounded-lg p-4">
+        <div class="text-xs uppercase tracking-wide text-ink-300" x-text="kpi.label"></div>
+        <div class="text-2xl font-semibold mt-1" x-text="kpi.value"></div>
+      </div>
+    </template>
+  </div>
+
+  <div>
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-ink-300 mb-3">Active campaigns across workspaces</h2>
+    <div class="bg-bg-900 border border-line rounded-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="text-ink-300 text-xs uppercase tracking-wide bg-bg-800/60">
+          <tr>
+            <th class="text-left px-4 py-2.5">Workspace</th>
+            <th class="text-left px-4 py-2.5">Campaign</th>
+            <th class="text-right px-4 py-2.5">Sent</th>
+            <th class="text-right px-4 py-2.5">Reply</th>
+            <th class="text-right px-4 py-2.5">Positive</th>
+            <th class="text-right px-4 py-2.5">Bounce</th>
+            <th class="text-left px-4 py-2.5">QA #4</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          <template x-for="c in [
+            {ws:'Proxima', name:'Demand Gen Lifecycle V2', sent:842, rep:'1.78%', pos:'0.71%', bnc:'0.8%', qa:'14d: 2026-05-31'},
+            {ws:'Goodwork', name:'V2 SEO Agencies', sent:412, rep:'2.18%', pos:'0.97%', bnc:'0.6%', qa:'14d: 2026-05-31'},
+            {ws:'LaunchNotes', name:'Campaign 241 DEL-12', sent:1042, rep:'1.44%', pos:'0.58%', bnc:'1.1%', qa:'14d: today 🏆'},
+            {ws:'SI', name:'V2 Marketing Agencies (DIRECT)', sent:2418, rep:'0.91%', pos:'0.33%', bnc:'1.3%', qa:'14d: 2026-05-25'},
+            {ws:'ERA', name:'Cybersecurity CISOs', sent:1280, rep:'2.41%', pos:'1.10%', bnc:'0.7%', qa:'30d: 2026-06-10'},
+            {ws:'NEC', name:'QSR Multi-Unit Franchisees', sent:487, rep:'1.85%', pos:'0.62%', bnc:'0.9%', qa:'launched today'},
+          ]">
+            <tr class="hover:bg-bg-800/50">
+              <td class="px-4 py-2.5" x-text="c.ws"></td>
+              <td class="px-4 py-2.5" x-text="c.name"></td>
+              <td class="px-4 py-2.5 text-right font-mono" x-text="c.sent.toLocaleString()"></td>
+              <td class="px-4 py-2.5 text-right font-mono" x-text="c.rep"></td>
+              <td class="px-4 py-2.5 text-right font-mono text-acc-ok" x-text="c.pos"></td>
+              <td class="px-4 py-2.5 text-right font-mono" x-text="c.bnc"></td>
+              <td class="px-4 py-2.5 text-ink-200" x-text="c.qa"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-ink-300 mb-3">Recent learning-layer writes</h2>
+    <div class="bg-bg-900 border border-line rounded-lg p-4 text-sm space-y-2 font-mono">
+      <div><span class="text-acc-ok">+ campaign_learnings.md</span> · LN 241 · "Personalized HTML produce-on-reply lifted M4 bridge activation by 2.1× vs baseline LM"</div>
+      <div><span class="text-acc-ok">+ offer_performance.md</span> · GW 412 · "REC offer with audit anchor: +0.4pp positive vs baseline"</div>
+      <div><span class="text-acc-warm">~ segment_playbook.md</span> · PX SEG5 · "Demand gen lifecycle responds 1.8× more to colored mechanism naming"</div>
+      <div><span class="text-acc-ok">+ reply_signals.md</span> · SI ICP6 · "Direct marketing agencies push back on wholesale framing — keep DIRECT pivot"</div>
+    </div>
+  </div>
+</main>
+
+<!-- ────────────────────────────  FINANCIAL VIEW  ──────────────────────────── -->
+<main x-show="view==='financial'" class="max-w-[1400px] mx-auto p-6 space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">Financial</h1>
+      <p class="text-ink-200 text-sm">MTD · auto-rollup from <span class="font-mono">financial_engine.py</span> · last sync 2h ago</p>
+    </div>
+    <button class="px-3 py-1.5 rounded border border-line text-sm">Run rollup now</button>
+  </div>
+
+  <div class="grid grid-cols-4 gap-3">
+    <template x-for="kpi in [
+      {label:'Spend MTD', value:'€2,418', sub:'API + infra'},
+      {label:'Cost / lead (verified)', value:'€0.062', sub:'down 18% vs Apr'},
+      {label:'Cost / positive reply', value:'€18.40', sub:'down 23% vs Apr'},
+      {label:'Cost / meeting', value:'€62.10', sub:'on benchmark'},
+    ]">
+      <div class="bg-bg-900 border border-line rounded-lg p-4">
+        <div class="text-xs uppercase tracking-wide text-ink-300" x-text="kpi.label"></div>
+        <div class="text-2xl font-semibold mt-1" x-text="kpi.value"></div>
+        <div class="text-xs text-ink-300 mt-1" x-text="kpi.sub"></div>
+      </div>
+    </template>
+  </div>
+
+  <div class="bg-bg-900 border border-line rounded-lg overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="text-ink-300 text-xs uppercase tracking-wide bg-bg-800/60">
+        <tr>
+          <th class="text-left px-4 py-2.5">Provider</th>
+          <th class="text-right px-4 py-2.5">Spend MTD</th>
+          <th class="text-right px-4 py-2.5">Volume</th>
+          <th class="text-right px-4 py-2.5">Unit cost</th>
+          <th class="text-left px-4 py-2.5">Notes</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-line">
+        <template x-for="r in [
+          {p:'Anthropic (Opus / Haiku)', s:'€612', v:'18.2M tokens', u:'€0.034/1K', n:'Opus for onboarding + breakout; Haiku for cleaning/merge tags'},
+          {p:'OpenAI (gpt-4o-mini)', s:'€84', v:'128K calls', u:'€0.00066', n:'ICP gates + data cleaning'},
+          {p:'TryKitt', s:'€312', v:'62.4K emails found', u:'€0.005', n:'Auto top-up — no rate limit gate'},
+          {p:'Blitz', s:'€0', v:'unlimited', u:'flat', n:'Subscription'},
+          {p:'LeadMagic', s:'€421', v:'42.1K found', u:'€0.010', n:'Email finder + role finder'},
+          {p:'Prospeo', s:'€186', v:'9.3K credits', u:'€0.020', n:'Growth plan'},
+          {p:'IcyPeas (post-waterfall)', s:'€198', v:'22K found', u:'€0.009', n:'Batch bulk on unfound'},
+          {p:'MillionVerifier', s:'€271', v:'90.3K verified', u:'€0.003', n:'Bulk + streaming'},
+          {p:'Hetzner VPS', s:'€11', v:'CX32', u:'flat', n:'1 VPS hosts all 9 workspaces'},
+          {p:'Hetzner Storage Box', s:'€4', v:'200 GB', u:'flat', n:'Restic backups'},
+          {p:'Domain + DNS', s:'€1', v:'1 domain', u:'flat', n:''},
+        ]">
+          <tr class="hover:bg-bg-800/50">
+            <td class="px-4 py-2.5" x-text="r.p"></td>
+            <td class="px-4 py-2.5 text-right font-mono" x-text="r.s"></td>
+            <td class="px-4 py-2.5 text-right font-mono text-ink-200" x-text="r.v"></td>
+            <td class="px-4 py-2.5 text-right font-mono text-ink-200" x-text="r.u"></td>
+            <td class="px-4 py-2.5 text-ink-300 text-xs" x-text="r.n"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ────────────────────────────  SETTINGS VIEW  ──────────────────────────── -->
+<main x-show="view==='settings'" class="max-w-[1400px] mx-auto p-6 space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Settings</h1>
+    <p class="text-ink-200 text-sm">Infra · Refresh rules · API keys · Backups</p>
+  </div>
+
+  <section class="bg-bg-900 border border-line rounded-lg p-5 space-y-3">
+    <h2 class="font-medium">CC auto-refresh rules</h2>
+    <p class="text-ink-300 text-sm">Each rule fires <span class="font-mono">tmux kill-session && tmux new-session 'claude code'</span> in the target workspace. Long-term memory + intelligence/* survive untouched.</p>
+    <div class="divide-y divide-line text-sm">
+      <template x-for="rule in [
+        {label:'After Slack launch alert posted', desc:'Fires when n8n receives the launch_alert webhook for a workspace. Default trigger.', on:true, badge:'primary'},
+        {label:'Manual button in workspace toolbar', desc:'Click [Refresh CC] in any workspace. Confirms with current context %.', on:true},
+        {label:'/finish slash command in CC', desc:'Operator types /finish in the terminal. Useful after a non-campaign task wraps.', on:true},
+        {label:'Context > 80%', desc:'Force a clean restart instead of CC native compaction. Aggressive but predictable.', on:true},
+        {label:'Idle > 6h', desc:'Refresh on next user interaction after a long idle gap.', on:true},
+        {label:'After QA #4 written', desc:'When QA #4 writes campaign_learnings.md, refresh the workspace.', on:false},
+      ]">
+        <div class="py-3 flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span x-text="rule.label"></span>
+              <span x-show="rule.badge" class="tag bg-acc/15 text-acc" x-text="rule.badge"></span>
+            </div>
+            <div class="text-ink-300 text-xs mt-0.5" x-text="rule.desc"></div>
+          </div>
+          <div :class="rule.on?'bg-acc-ok':'bg-bg-700'" class="w-9 h-5 rounded-full relative cursor-pointer">
+            <div class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" :class="rule.on?'left-4':'left-0.5'"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <section class="bg-bg-900 border border-line rounded-lg p-5 space-y-3">
+    <h2 class="font-medium">Containers & infra</h2>
+    <div class="grid grid-cols-3 gap-3 text-sm">
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">VPS</div>
+        <div class="font-mono">Hetzner CX32 · €11/mo</div>
+        <div class="text-ink-300 text-xs mt-1">FRA1 · 4 vCPU · 8GB · 80GB</div>
+      </div>
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">Containers</div>
+        <div class="font-mono">9 / 9 healthy</div>
+        <div class="text-ink-300 text-xs mt-1">Image · campaign-cc:2026.05.18</div>
+      </div>
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">Reverse proxy</div>
+        <div class="font-mono">Caddy · TLS auto-renew</div>
+        <div class="text-ink-300 text-xs mt-1">cc., deliv., n8n. subdomains</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-bg-900 border border-line rounded-lg p-5 space-y-3">
+    <h2 class="font-medium">Backups (restic)</h2>
+    <div class="grid grid-cols-4 gap-3 text-sm">
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">Schedule</div>
+        <div class="font-mono">02:00 daily</div>
+      </div>
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">Target</div>
+        <div class="font-mono">Storage Box · 200 GB</div>
+      </div>
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">Last snapshot</div>
+        <div class="font-mono">03:14 ago · 5.8 GB</div>
+      </div>
+      <div class="bg-bg-800 rounded p-3">
+        <div class="text-ink-300 text-xs">Retention</div>
+        <div class="font-mono">7d · 4w · 12m</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ────────────────────────────  NEW CAMPAIGN WIZARD  ──────────────────────────── -->
+<div x-show="wizardOpen" x-cloak @keydown.escape.window="wizardOpen=false" class="fixed inset-0 bg-bg-950/80 backdrop-blur-sm z-40 flex items-center justify-center p-4">
+  <div class="w-full max-w-3xl bg-bg-900 border border-line rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="px-5 py-3 border-b border-line flex items-center justify-between">
+      <div>
+        <div class="font-medium">New campaign — <span x-text="current().name"></span></div>
+        <div class="text-ink-300 text-xs">Step <span x-text="wizardStep"></span> of 10</div>
+      </div>
+      <button @click="wizardOpen=false" class="text-ink-300 hover:text-ink-50">✕</button>
+    </div>
+
+    <!-- step rail -->
+    <div class="px-5 py-3 border-b border-line flex gap-1 overflow-x-auto scroll-thin">
+      <template x-for="(label, i) in ['Brief','Research','Offer','Copy','Targeting','Sourcing','Pipeline','QA','Push','Refresh']" :key="i">
+        <button @click="wizardStep=i+1" class="text-xs px-2.5 py-1 rounded whitespace-nowrap" :class="wizardStep===i+1?'bg-acc text-bg-950 font-medium':wizardStep>i+1?'bg-bg-800 text-ink-200':'border border-line text-ink-300'">
+          <span x-text="(i+1)+'. '+label"></span>
+        </button>
+      </template>
+    </div>
+
+    <div class="flex-1 overflow-y-auto scroll-thin p-5 text-sm">
+      <!-- step 1 brief -->
+      <div x-show="wizardStep===1" class="space-y-4">
+        <div>
+          <div class="text-ink-300 text-xs uppercase tracking-wide mb-1">ICP × SEG</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="border border-line bg-bg-800 rounded p-3">
+              <div class="text-xs text-ink-300">ICP</div>
+              <div class="font-medium mt-0.5">ICP4 — B2B SaaS · 50-500 employees</div>
+            </div>
+            <div class="border border-line bg-bg-800 rounded p-3">
+              <div class="text-xs text-ink-300">SEG</div>
+              <div class="font-medium mt-0.5">SEG9 — Customer Success Leadership</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="text-ink-300 text-xs uppercase tracking-wide mb-1">Hypothesis (required at launch — pre-fill now)</div>
+          <textarea class="w-full bg-bg-800 border border-line rounded p-3 text-sm font-mono h-24 placeholder:text-ink-300" placeholder="Mid-market SaaS CS leaders will respond to a 30-day-recovery playbook framed around silent at-risk signals — outperforming our V1 generic CS playbook by 1.5×."></textarea>
+        </div>
+        <div>
+          <div class="text-ink-300 text-xs uppercase tracking-wide mb-1">Change Log check</div>
+          <div class="text-acc-ok text-xs">✓ no KILL / DEMOTE flags affecting this segment</div>
+        </div>
+      </div>
+
+      <!-- step 2 research -->
+      <div x-show="wizardStep===2" class="space-y-3">
+        <div class="bg-bg-800 border border-line rounded p-4 font-mono text-xs leading-relaxed">
+          <div class="text-acc-warm">↳ /research saas-customer-success</div>
+          <div class="text-ink-200 mt-1">Loading PO ICP4 × SEG9 · anchor companies from intelligence/case_studies_by_segment.md</div>
+          <div class="text-ink-200">Discolike returned 1,402 fit companies · seeding from 4 anchors (Gainsight, Catalyst, Vitally, ChurnZero)</div>
+          <div class="text-ink-200">Drafting 9-section paper + ranked combinations matrix…</div>
+          <div class="text-acc-ok mt-1">✓ wrote segments/saas-customer-success/research-paper.md</div>
+          <div class="text-acc-ok">✓ deployed client-facing brief → si.netlify.app/research/saas-customer-success.html</div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="px-3 py-2 rounded border border-line text-sm">Open research paper</button>
+          <button class="px-3 py-2 rounded border border-line text-sm">Open client brief</button>
+        </div>
+      </div>
+
+      <!-- step 4 copy -->
+      <div x-show="wizardStep===4" class="space-y-3">
+        <div class="text-ink-300 text-xs">All three emails draft below. 2:1 audit + spam audit + plain-language pass run automatically. Iterate inline.</div>
+        <div class="bg-bg-800 border border-line rounded p-3 text-sm font-mono leading-snug">
+          <div class="text-acc-warm text-xs mb-1">E1 · 31/40 words · 2:1 = 6:2 · spam PASS</div>
+          {first_name} -<br><br>could I send over our 30-day CS playbook that Gainsight used to recover 4.2M in stalled renewals last quarter?<br><br>Their team runs it as a one-page risk audit at day 14 — surfaces the accounts most likely to slip before the QBR even lands.
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-3 text-sm font-mono leading-snug">
+          <div class="text-acc-warm text-xs mb-1">E2 · 28/40 · 2:1 = 5:2 · plain-language: 1 fix applied</div>
+          {first_name},<br><br>Vitally ran the same play and clawed back 14 at-risk accounts inside 30 days — the gain came from the day-14 audit catching silent feature-drop signals.<br><br>If your QBR cadence keeps missing the silent risk, could I send over the audit template we used with them?
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-3 text-sm font-mono leading-snug">
+          <div class="text-acc-warm text-xs mb-1">E3 Shape A · 18/25 · 2:1 = 4:1</div>
+          Catalyst's CS team uses our QBR risk-scoring rubric to triage 200 accounts in under an hour every Monday.<br><br>Mind if I drop that rubric in your inbox?
+        </div>
+      </div>
+
+      <!-- step 9 push -->
+      <div x-show="wizardStep===9" class="space-y-3">
+        <div class="text-ink-300 text-xs">Last gate before EB push. Learning-layer gate has fired and returned PASS.</div>
+        <div class="bg-bg-800 border border-line rounded p-4 space-y-2 text-sm">
+          <div class="flex justify-between"><span>Workspace</span><span class="font-mono" x-text="current().name"></span></div>
+          <div class="flex justify-between"><span>EB campaign name</span><span class="font-mono">SI CS Leadership V1 — 30day Playbook</span></div>
+          <div class="flex justify-between"><span>Verified leads</span><span class="font-mono">1,284</span></div>
+          <div class="flex justify-between"><span>Daily cap</span><span class="font-mono">400</span></div>
+          <div class="flex justify-between"><span>Cadence</span><span class="font-mono">1 / 1 / 2 days</span></div>
+          <div class="flex justify-between"><span>Sender pool</span><span class="font-mono">Google · 40 senders</span></div>
+          <div class="flex justify-between"><span>QA #4 dates</span><span class="font-mono">14d: 2026-06-01 · 30d: 2026-06-17</span></div>
+          <div class="flex justify-between"><span>Learning-layer gate</span><span class="text-acc-ok font-mono">PASS</span></div>
+          <div class="flex justify-between"><span>Intra-rotation filter</span><span class="text-acc-ok font-mono">PASS · 0 residual</span></div>
+        </div>
+        <div class="bg-bg-800 border border-line rounded p-3 text-xs text-ink-200">
+          <span class="text-acc-warm">⟳ On launch alert post, CC will auto-refresh this workspace (current 14% → 0%).</span>
+        </div>
+      </div>
+
+      <!-- step 10 refresh -->
+      <div x-show="wizardStep===10" class="space-y-4 text-center">
+        <div class="text-4xl">⟳</div>
+        <div class="text-lg">Campaign launched · Slack alert posted · CC session refreshing</div>
+        <div class="text-ink-300 text-sm">tmux kill-session && tmux new-session 'claude code' — fresh context in &lt;3s. Long-term memory + intelligence/* preserved.</div>
+        <div class="font-mono text-xs text-ink-300 bg-bg-800 border border-line rounded p-3 text-left">
+          [12:04:19] hook fired: Stop · matcher=slack-launch-alert<br>
+          [12:04:19] sentinel: /work/.last-campaign-pushed found<br>
+          [12:04:19] signal: REFRESH → /run/cc-si.sock<br>
+          [12:04:20] supervisor: killing tmux session cc-si<br>
+          [12:04:22] supervisor: new tmux session cc-si · claude code · cwd=/work<br>
+          [12:04:22] cc loaded · CLAUDE.md · 142 memory entries · intelligence/* · ready
+        </div>
+      </div>
+
+      <!-- generic placeholder for other steps -->
+      <div x-show="![1,2,4,9,10].includes(wizardStep)" class="text-ink-200 text-sm">
+        <p>This step's UI mirrors the inline CC terminal output for the corresponding skill. The wizard wraps the same flow you'd run via slash command — just renders it visually for at-a-glance review.</p>
+        <p class="mt-2 text-ink-300">In a real session: each step shows its skill's output, surface metrics, and an [Approve · continue] button.</p>
+      </div>
+    </div>
+
+    <div class="px-5 py-3 border-t border-line flex items-center justify-between">
+      <button @click="wizardStep = Math.max(1, wizardStep-1)" class="px-3 py-1.5 rounded border border-line text-sm" :disabled="wizardStep===1" :class="wizardStep===1?'opacity-30':''">← Back</button>
+      <div class="flex gap-2">
+        <button class="px-3 py-1.5 rounded text-sm text-ink-300">Save & exit</button>
+        <button @click="wizardStep<10 ? wizardStep++ : wizardOpen=false" class="px-4 py-1.5 rounded bg-acc text-bg-950 font-medium text-sm" x-text="wizardStep===10?'Done':'Approve · continue →'"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────  REFRESH MODAL  ──────────────────────────── -->
+<div x-show="showRefreshModal" x-cloak @keydown.escape.window="showRefreshModal=false" class="fixed inset-0 bg-bg-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="w-full max-w-md bg-bg-900 border border-line rounded-xl p-5">
+    <h3 class="font-medium">Refresh CC — <span x-text="refreshTarget?.name"></span></h3>
+    <p class="text-ink-300 text-sm mt-2">A fresh CC session boots in ~3 seconds. Memory + intelligence/* persist. Open files are reopened from disk; tool output not in memory is dropped.</p>
+    <div class="bg-bg-800 border border-line rounded p-3 mt-3 text-sm font-mono">
+      Current: <span x-text="refreshTarget?.turns + ' turns · ' + refreshTarget?.ctx + '% ctx'"></span><br>
+      After: 0 turns · 0% ctx · same /work, same memory, same hooks
+    </div>
+    <div class="flex gap-2 mt-4">
+      <button @click="showRefreshModal=false" class="flex-1 px-3 py-2 rounded border border-line text-sm">Cancel</button>
+      <button @click="showRefreshModal=false" class="flex-1 px-3 py-2 rounded bg-acc text-bg-950 font-medium text-sm">Refresh now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────  SHORTCUTS  ──────────────────────────── -->
+<div x-show="showShortcuts" x-cloak @keydown.escape.window="showShortcuts=false" class="fixed inset-0 bg-bg-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="w-full max-w-lg bg-bg-900 border border-line rounded-xl p-5">
+    <h3 class="font-medium mb-3">Command palette · ⌘K</h3>
+    <input type="text" placeholder="Search workspaces, campaigns, files, slash commands…" class="w-full bg-bg-800 border border-line rounded px-3 py-2 text-sm placeholder:text-ink-300 outline-none focus:border-acc" />
+    <div class="mt-4 space-y-1 text-sm">
+      <div class="text-ink-300 text-xs uppercase tracking-wide">Workspaces</div>
+      <template x-for="ws in workspaces.slice(0,4)" :key="ws.slug">
+        <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-800">
+          <span class="text-ink-200" x-text="'⇧⌘ ' + ws.tag"></span>
+          <span x-text="ws.name"></span>
+        </div>
+      </template>
+      <div class="text-ink-300 text-xs uppercase tracking-wide mt-3">Actions</div>
+      <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-800">
+        <span class="text-ink-200">⌘N</span> New campaign in current workspace
+      </div>
+      <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-800">
+        <span class="text-ink-200">⌘R</span> Refresh CC in current workspace
+      </div>
+      <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-800">
+        <span class="text-ink-200">⌘I</span> Open positive-reply inbox
+      </div>
+      <div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-bg-800">
+        <span class="text-ink-200">⌘T</span> Open telemetry
+      </div>
+    </div>
+    <div class="mt-4 text-ink-300 text-xs text-right">esc to close</div>
+  </div>
+</div>
+
+</body>
+</html>
