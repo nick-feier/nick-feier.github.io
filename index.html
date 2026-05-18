@@ -123,72 +123,84 @@
   .scroll-thin::-webkit-scrollbar-track { background: transparent; }
 
   /* ═══════════ BADGES ═══════════
-     Fixed-height pills. Fixed height (22-24px) + border-radius: 999px guarantees
-     the browser clamps to half-height = TRUE pill caps. Horizontal padding only.
-     Direct CSS (no @apply) for predictability.
+     Built for pill-shape guarantee:
+       - Fixed height + border-radius: 9999px → half-height clamp → real pill caps.
+       - !important so nothing else (Tailwind utility, base layer) can override.
+       - Bumped sizes (h-24/26) so pill shape reads cleanly at typical viewing distance.
   */
   .chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    height: 22px; padding: 0 10px;
-    border-radius: 999px;
-    font-size: 11px; font-weight: 500; line-height: 1;
+    display: inline-flex !important;
+    align-items: center; gap: 6px;
+    height: 24px !important; padding: 0 11px !important;
+    border-radius: 9999px !important;
+    font-size: 11.5px; font-weight: 500; line-height: 1;
     white-space: nowrap; letter-spacing: 0.005em;
   }
-  .chip-sm { height: 18px; padding: 0 7px; font-size: 10px; }
+  .chip-sm { height: 20px !important; padding: 0 8px !important; font-size: 10.5px; }
 
-  /* Step pill — minimal beige pill: "on E2" */
+  /* Step pill — minimal beige: "on E2" */
   .badge-step {
-    display: inline-flex; align-items: center;
-    height: 22px; padding: 0 10px;
-    border-radius: 999px;
+    display: inline-flex !important;
+    align-items: center;
+    height: 24px !important; padding: 0 11px !important;
+    border-radius: 9999px !important;
     background: rgb(var(--ink-100));
     color: rgb(var(--ink-700));
-    font-size: 11px; font-weight: 500; line-height: 1;
-    white-space: nowrap; letter-spacing: 0.01em;
+    font-size: 11.5px; font-weight: 500; line-height: 1;
+    white-space: nowrap; letter-spacing: 0.015em;
   }
 
-  /* Status pill — amber for "build asset", "needs review" */
+  /* Warning pill — amber: "build asset" / "needs review" */
   .badge-warn {
-    display: inline-flex; align-items: center; gap: 5px;
-    height: 22px; padding: 0 10px;
-    border-radius: 999px;
+    display: inline-flex !important;
+    align-items: center; gap: 6px;
+    height: 24px !important; padding: 0 11px !important;
+    border-radius: 9999px !important;
     background: rgb(var(--warn-soft));
     color: #B45309;
-    font-size: 11px; font-weight: 600; line-height: 1;
-    white-space: nowrap;
+    font-size: 11.5px; font-weight: 600; line-height: 1;
+    white-space: nowrap; letter-spacing: 0.005em;
   }
   .dark .badge-warn { color: #FCD34D; }
   .badge-warn::before {
-    content: ''; width: 5px; height: 5px;
-    border-radius: 999px; background: currentColor; opacity: .85;
+    content: ''; width: 6px; height: 6px;
+    border-radius: 9999px; background: currentColor; opacity: .9;
+    flex-shrink: 0;
   }
 
-  /* Status pill — green for "complete", "ready" */
+  /* OK pill — green: "complete" / "ready" */
   .badge-ok {
-    display: inline-flex; align-items: center; gap: 5px;
-    height: 22px; padding: 0 10px;
-    border-radius: 999px;
+    display: inline-flex !important;
+    align-items: center; gap: 6px;
+    height: 24px !important; padding: 0 11px !important;
+    border-radius: 9999px !important;
     background: rgb(var(--ok-soft));
     color: #047857;
-    font-size: 11px; font-weight: 600; line-height: 1;
+    font-size: 11.5px; font-weight: 600; line-height: 1;
     white-space: nowrap;
   }
   .dark .badge-ok { color: #6EE7B7; }
+  .badge-ok::before {
+    content: ''; width: 6px; height: 6px;
+    border-radius: 9999px; background: currentColor; opacity: .9;
+    flex-shrink: 0;
+  }
 
   /* Workspace pill — logo + name */
   .badge-ws {
-    display: inline-flex; align-items: center; gap: 6px;
-    height: 24px; padding: 0 10px 0 3px;
-    border-radius: 999px;
+    display: inline-flex !important;
+    align-items: center; gap: 7px;
+    height: 26px !important; padding: 0 11px 0 3px !important;
+    border-radius: 9999px !important;
     background: rgb(var(--surface-card));
     color: rgb(var(--ink-700));
-    font-size: 11px; font-weight: 500; line-height: 1;
+    font-size: 11.5px; font-weight: 500; line-height: 1;
     white-space: nowrap;
     box-shadow: inset 0 0 0 1px rgb(var(--line));
   }
   .badge-ws .ws-mark {
-    width: 18px; height: 18px;
-    border-radius: 5px; box-shadow: none;
+    width: 20px !important; height: 20px !important;
+    border-radius: 6px !important; box-shadow: none !important;
   }
 
   /* Workspace logo mark — rounded-square avatar */
