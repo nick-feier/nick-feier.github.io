@@ -42,9 +42,54 @@
   .tab-active { @apply border-b-2 border-brand text-brand; }
   .tab-inactive { @apply text-ink-400 hover:text-ink-700; }
   .editable { @apply outline-none focus:bg-yellow-50/40 -mx-1 px-1 rounded; }
+
+  /* Inline AI diff markup */
+  .diff-old { text-decoration: line-through; color:#9A816A; background:#FEE2E2; padding:0 2px; border-radius:3px; }
+  .diff-new { color:#10B981; background:#D1FAE5; padding:0 2px; border-radius:3px; font-weight:500; }
+  .diff-pending .diff-actions { display:inline-flex; gap:2px; margin-left:4px; vertical-align:middle; }
+  .diff-pending .diff-actions button {
+    width:18px; height:18px; border-radius:99px; font-size:11px; line-height:1;
+    border:1px solid #FFEDE0; background:#fff; cursor:pointer;
+  }
+  .diff-pending .diff-actions button[data-act="accept"] { color:#10B981; border-color:#D1FAE5; }
+  .diff-pending .diff-actions button[data-act="accept"]:hover { background:#D1FAE5; }
+  .diff-pending .diff-actions button[data-act="reject"] { color:#EF4444; border-color:#FEE2E2; }
+  .diff-pending .diff-actions button[data-act="reject"]:hover { background:#FEE2E2; }
+
+  /* AI toolbar */
+  .ai-toolbar {
+    position: fixed; z-index: 60;
+    transform: translate(-50%, -100%);
+    background: #41220B; color: white;
+    border-radius: 10px; padding: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.12);
+    display: flex; gap: 2px; align-items: center;
+    white-space: nowrap;
+  }
+  .ai-toolbar::after {
+    content:''; position: absolute; left:50%; bottom:-5px;
+    transform: translateX(-50%) rotate(45deg);
+    width:10px; height:10px; background:#41220B;
+  }
+  .ai-toolbar button {
+    background: transparent; color: white;
+    border: none; padding: 5px 9px; border-radius: 6px;
+    font-size: 12px; cursor: pointer;
+    display:flex; align-items:center; gap:4px;
+  }
+  .ai-toolbar button:hover { background: rgba(255,255,255,.12); }
+  .ai-toolbar button.loading { opacity: .55; cursor: wait; }
+  .ai-toolbar .divider { width:1px; height:16px; background:rgba(255,255,255,.15); margin:0 2px; }
+  .ai-toolbar .spinner { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Audit chips state animation */
+  .audit-chip { transition: background-color .25s, color .25s; }
+  .audit-checking { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
 </style>
 </head>
-<body class="bg-surface text-ink-900 font-sans" x-data="appState()">
+<body class="bg-surface text-ink-900 font-sans" x-data="appState()" x-init="initCopy()">
 
 <!-- ────────────────────────  TOP BAR  ──────────────────────── -->
 <header class="h-14 bg-surface-card border-b border-line flex items-center px-3 md:px-4 sticky top-0 z-30 gap-2 md:gap-3">
@@ -608,103 +653,91 @@
             </div>
           </div>
 
+          <!-- Demo hint -->
+          <div class="bg-acc-soft border border-acc/30 rounded-lg px-3 py-2 text-xs text-ink-700 flex items-center gap-2">
+            <span class="text-acc font-medium">Live demo:</span>
+            <span>Type to see audits re-evaluate. Highlight any phrase inside an email to summon the AI toolbar.</span>
+          </div>
+
           <!-- 3 email cards in a row -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <!-- E1 -->
-            <article class="bg-surface-card border border-line rounded-xl overflow-hidden flex flex-col">
-              <header class="px-4 py-3 border-b border-line bg-surface-sunk flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="chip bg-ink-100 text-ink-700">E1 · cold open</span>
-                  <span class="text-xs text-ink-400">Day 1</span>
-                </div>
-                <button class="text-ink-400 hover:text-ink-700 text-sm">⋯</button>
-              </header>
-              <div class="p-4 text-sm flex-1 space-y-3">
-                <div>
-                  <div class="text-[10px] uppercase tracking-wider text-ink-400">Subject</div>
-                  <div class="editable mt-0.5 font-medium" contenteditable>a 30-day playbook</div>
-                </div>
-                <div>
-                  <div class="text-[10px] uppercase tracking-wider text-ink-400">Body</div>
-                  <div class="editable mt-0.5 leading-relaxed" contenteditable>
-                    <p>{first_name} -</p>
-                    <p class="mt-2">could I send over our 30-day CS playbook that <strong>Gainsight</strong> used to recover <strong>4.2M</strong> in stalled renewals last quarter?</p>
-                    <p class="mt-2">Their team runs it as a one-page risk audit at day 14 — surfaces the accounts most likely to slip before the QBR even lands.</p>
+            <template x-for="key in ['e1','e2','e3']" :key="key">
+              <article class="bg-surface-card border border-line rounded-xl overflow-hidden flex flex-col">
+                <header class="px-4 py-3 border-b border-line bg-surface-sunk flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="chip bg-ink-100 text-ink-700" x-text="emails[key].label"></span>
+                    <span class="text-xs text-ink-400" x-text="emails[key].day"></span>
                   </div>
-                </div>
-                <div class="text-xs text-ink-500 border-t border-line pt-2">
-                  Nick Feier<br/>Co-Founder | Something Inc.
-                </div>
-              </div>
-              <footer class="px-3 py-2 border-t border-line bg-surface-sunk flex items-center gap-1.5 flex-wrap">
-                <span class="chip bg-ok-soft text-ok">● 31/40 words</span>
-                <span class="chip bg-ok-soft text-ok">● 6:2 prospect/us</span>
-                <span class="chip bg-ok-soft text-ok">● spam PASS</span>
-                <span class="chip bg-ok-soft text-ok">● readability G7</span>
-              </footer>
-            </article>
-
-            <!-- E2 -->
-            <article class="bg-surface-card border border-line rounded-xl overflow-hidden flex flex-col">
-              <header class="px-4 py-3 border-b border-line bg-surface-sunk flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="chip bg-ink-100 text-ink-700">E2 · thread reply</span>
-                  <span class="text-xs text-ink-400">Day 2</span>
-                </div>
-                <button class="text-ink-400 hover:text-ink-700 text-sm">⋯</button>
-              </header>
-              <div class="p-4 text-sm flex-1 space-y-3">
-                <div>
-                  <div class="text-[10px] uppercase tracking-wider text-ink-400">Subject</div>
-                  <div class="mt-0.5 text-ink-400 italic">(thread reply)</div>
-                </div>
-                <div>
-                  <div class="text-[10px] uppercase tracking-wider text-ink-400">Body</div>
-                  <div class="editable mt-0.5 leading-relaxed" contenteditable>
-                    <p>{first_name},</p>
-                    <p class="mt-2"><strong>Vitally</strong> ran the same play and clawed back <strong>14 at-risk accounts</strong> inside 30 days — the gain came from the day-14 audit catching silent feature-drop signals.</p>
-                    <p class="mt-2">If your QBR cadence keeps missing the silent risk, could I send over the audit template we used with them?</p>
+                  <div class="flex items-center gap-1">
+                    <button @click="regenerateEmail(key)" class="text-ink-400 hover:text-brand text-xs px-1.5 py-0.5 rounded hover:bg-surface-hover" title="Regenerate">↻</button>
+                    <button class="text-ink-400 hover:text-ink-700 text-sm px-1">⋯</button>
                   </div>
-                </div>
-                <div class="text-xs text-ink-500 border-t border-line pt-2">Nick</div>
-              </div>
-              <footer class="px-3 py-2 border-t border-line bg-surface-sunk flex items-center gap-1.5 flex-wrap">
-                <span class="chip bg-ok-soft text-ok">● 28/40 words</span>
-                <span class="chip bg-ok-soft text-ok">● 5:2 prospect/us</span>
-                <span class="chip bg-warn-soft text-warn">● plain-lang: 1 fix applied</span>
-                <span class="chip bg-ok-soft text-ok">● spam PASS</span>
-              </footer>
-            </article>
-
-            <!-- E3 -->
-            <article class="bg-surface-card border border-line rounded-xl overflow-hidden flex flex-col">
-              <header class="px-4 py-3 border-b border-line bg-surface-sunk flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="chip bg-ink-100 text-ink-700">E3 · Shape A</span>
-                  <span class="text-xs text-ink-400">Day 4</span>
-                </div>
-                <button class="text-ink-400 hover:text-ink-700 text-sm">⋯</button>
-              </header>
-              <div class="p-4 text-sm flex-1 space-y-3">
-                <div>
-                  <div class="text-[10px] uppercase tracking-wider text-ink-400">Subject</div>
-                  <div class="mt-0.5 text-ink-400 italic">(thread reply)</div>
-                </div>
-                <div>
-                  <div class="text-[10px] uppercase tracking-wider text-ink-400">Body</div>
-                  <div class="editable mt-0.5 leading-relaxed" contenteditable>
-                    <p><strong>Catalyst's</strong> CS team uses our QBR risk-scoring rubric to triage <strong>200 accounts</strong> in under an hour every Monday.</p>
-                    <p class="mt-2">Mind if I drop that rubric in your inbox?</p>
+                </header>
+                <div class="p-4 text-sm flex-1 space-y-3">
+                  <div>
+                    <div class="text-[10px] uppercase tracking-wider text-ink-400">Subject</div>
+                    <template x-if="emails[key].subject !== null">
+                      <div class="editable mt-0.5 font-medium" contenteditable x-html="emails[key].subject" @input="audit(key)"></div>
+                    </template>
+                    <template x-if="emails[key].subject === null">
+                      <div class="mt-0.5 text-ink-400 italic">(thread reply)</div>
+                    </template>
                   </div>
+                  <div>
+                    <div class="text-[10px] uppercase tracking-wider text-ink-400">Body</div>
+                    <div
+                      class="editable email-body mt-0.5 leading-relaxed"
+                      :id="`ebody-${key}`"
+                      contenteditable
+                      :data-email="key"
+                      x-html="emails[key].body"
+                      @input="audit(key)"
+                      @click="handleDiffClick($event, key)"
+                    ></div>
+                  </div>
+                  <div class="text-xs text-ink-500 border-t border-line pt-2" x-html="emails[key].signature"></div>
                 </div>
-                <div class="text-xs text-ink-500 border-t border-line pt-2">Nick</div>
-              </div>
-              <footer class="px-3 py-2 border-t border-line bg-surface-sunk flex items-center gap-1.5 flex-wrap">
-                <span class="chip bg-ok-soft text-ok">● 18/25 words</span>
-                <span class="chip bg-ok-soft text-ok">● 4:1 prospect/us</span>
-                <span class="chip bg-ok-soft text-ok">● 3 distinct DELs</span>
-              </footer>
-            </article>
+                <footer class="px-3 py-2 border-t border-line bg-surface-sunk flex items-center gap-1.5 flex-wrap">
+                  <!-- word count -->
+                  <span class="chip audit-chip" :class="emails[key].audits.words <= emails[key].wordsMax ? 'bg-ok-soft text-ok' : 'bg-bad-soft text-bad'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="emails[key].audits.words <= emails[key].wordsMax ? 'bg-ok' : 'bg-bad'"></span>
+                    <span x-text="`${emails[key].audits.words}/${emails[key].wordsMax} words`"></span>
+                  </span>
+                  <!-- ratio -->
+                  <span class="chip audit-chip" :class="emails[key].audits.ratioOk ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="emails[key].audits.ratioOk ? 'bg-ok' : 'bg-warn'"></span>
+                    <span x-text="`${emails[key].audits.ratio} prospect/us`"></span>
+                  </span>
+                  <!-- spam -->
+                  <span class="chip audit-chip" :class="emails[key].audits.spam==='PASS' ? 'bg-ok-soft text-ok' : 'bg-bad-soft text-bad'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="emails[key].audits.spam==='PASS' ? 'bg-ok' : 'bg-bad'"></span>
+                    <span x-text="`spam ${emails[key].audits.spam}`"></span>
+                  </span>
+                  <!-- $ symbol -->
+                  <span class="chip audit-chip" :class="emails[key].audits.dollar ? 'bg-ok-soft text-ok' : 'bg-bad-soft text-bad'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="emails[key].audits.dollar ? 'bg-ok' : 'bg-bad'"></span>
+                    <span x-text="emails[key].audits.dollar ? 'no $ symbol' : '$-symbol found'"></span>
+                  </span>
+                  <!-- plain-language (Haiku, debounced) -->
+                  <span class="chip audit-chip"
+                    :class="{
+                      'bg-ink-100 text-ink-500 audit-checking': emails[key].audits.plain==='checking',
+                      'bg-ok-soft text-ok': emails[key].audits.plain==='PASS',
+                      'bg-warn-soft text-warn': emails[key].audits.plain==='1 fix',
+                      'bg-bad-soft text-bad': emails[key].audits.plain==='FAIL'
+                    }">
+                    <span class="w-1.5 h-1.5 rounded-full"
+                      :class="{
+                        'bg-ink-300': emails[key].audits.plain==='checking',
+                        'bg-ok': emails[key].audits.plain==='PASS',
+                        'bg-warn': emails[key].audits.plain==='1 fix',
+                        'bg-bad': emails[key].audits.plain==='FAIL'
+                      }"></span>
+                    <span x-text="emails[key].audits.plain==='checking' ? 'plain-lang…' : `plain-lang ${emails[key].audits.plain}`"></span>
+                  </span>
+                </footer>
+              </article>
+            </template>
           </div>
 
           <!-- Asset bank below -->
@@ -1216,6 +1249,43 @@
   </main>
 </div>
 
+<!-- ────────────────────────  AI SELECTION TOOLBAR  ──────────────────────── -->
+<div
+  x-show="aiTool.open"
+  x-cloak
+  class="ai-toolbar"
+  :style="`left:${aiTool.x}px; top:${aiTool.y}px`"
+  @click.stop
+>
+  <button @click="runAction('shorten')" :class="aiTool.loading==='shorten' && 'loading'">
+    <span x-show="aiTool.loading!=='shorten'">↧</span>
+    <span x-show="aiTool.loading==='shorten'" class="spinner">⟳</span>
+    Shorten
+  </button>
+  <button @click="runAction('soften')" :class="aiTool.loading==='soften' && 'loading'">
+    <span x-show="aiTool.loading!=='soften'">≈</span>
+    <span x-show="aiTool.loading==='soften'" class="spinner">⟳</span>
+    Soften CTA
+  </button>
+  <button @click="runAction('anchor')" :class="aiTool.loading==='anchor' && 'loading'">
+    <span x-show="aiTool.loading!=='anchor'">⤬</span>
+    <span x-show="aiTool.loading==='anchor'" class="spinner">⟳</span>
+    Different anchor
+  </button>
+  <button @click="runAction('plain')" :class="aiTool.loading==='plain' && 'loading'">
+    <span x-show="aiTool.loading!=='plain'">✎</span>
+    <span x-show="aiTool.loading==='plain'" class="spinner">⟳</span>
+    Plain-language
+  </button>
+  <button @click="runAction('question')" :class="aiTool.loading==='question' && 'loading'">
+    <span x-show="aiTool.loading!=='question'">?</span>
+    <span x-show="aiTool.loading==='question'" class="spinner">⟳</span>
+    Question form
+  </button>
+  <span class="divider"></span>
+  <button @click="aiTool.open=false" title="Dismiss">✕</button>
+</div>
+
 <!-- ────────────────────────  CLAUDE ACTION DRAWER  ──────────────────────── -->
 <div x-show="claudeDrawerOpen" x-cloak @keydown.escape.window="claudeDrawerOpen=false" class="fixed inset-0 z-40 pointer-events-none">
   <div @click="claudeDrawerOpen=false" class="absolute inset-0 bg-black/20 pointer-events-auto"></div>
@@ -1356,6 +1426,231 @@ function appState() {
     inboxSelected: null,        // null = show list (mobile)
     inboxOpenThread() { return this.inboxSelected !== null },
     claudeQueue: [1,2,3],
+
+    // ───── COPY EDITING STATE ─────
+    emails: {
+      e1: {
+        label:'E1 · cold open', day:'Day 1', wordsMax:40,
+        subject:'a 30-day playbook',
+        body:`<p>{first_name} -</p>
+<p class="mt-2">could I send over our 30-day CS playbook that <strong>Gainsight</strong> used to recover <strong>4.2M</strong> in stalled renewals last quarter?</p>
+<p class="mt-2">Their team runs it as a one-page risk audit at day 14 — surfaces the accounts most likely to slip before the QBR even lands.</p>`,
+        signature:`Nick Feier<br/>Co-Founder | Something Inc.`,
+        audits: { words:31, ratio:'6:2', ratioOk:true, spam:'PASS', dollar:true, plain:'PASS' }
+      },
+      e2: {
+        label:'E2 · thread reply', day:'Day 2', wordsMax:40,
+        subject:null,
+        body:`<p>{first_name},</p>
+<p class="mt-2"><strong>Vitally</strong> ran the same play and clawed back <strong>14 at-risk accounts</strong> inside 30 days — the gain came from the day-14 audit catching silent feature-drop signals.</p>
+<p class="mt-2">If your QBR cadence keeps missing the silent risk, could I send over the audit template we used with them?</p>`,
+        signature:'Nick',
+        audits: { words:28, ratio:'5:2', ratioOk:true, spam:'PASS', dollar:true, plain:'1 fix' }
+      },
+      e3: {
+        label:'E3 · Shape A', day:'Day 4', wordsMax:25,
+        subject:null,
+        body:`<p><strong>Catalyst's</strong> CS team uses our QBR risk-scoring rubric to triage <strong>200 accounts</strong> in under an hour every Monday.</p>
+<p class="mt-2">Mind if I drop that rubric in your inbox?</p>`,
+        signature:'Nick',
+        audits: { words:18, ratio:'4:1', ratioOk:true, spam:'PASS', dollar:true, plain:'PASS' }
+      },
+    },
+    plainTimers: {},
+    aiTool: { open:false, x:0, y:0, emailKey:null, range:null, text:'', loading:null },
+
+    initCopy() {
+      // Audit initial state for all emails
+      this.$nextTick(() => {
+        ['e1','e2','e3'].forEach(k => this.audit(k));
+      });
+      // Selection listener — show toolbar when user highlights within an email body
+      document.addEventListener('selectionchange', () => this.handleSelection());
+      // Click anywhere except the toolbar dismisses it (handled via toolbar's @click.stop)
+      document.addEventListener('mousedown', (e) => {
+        if (!e.target.closest('.ai-toolbar') && !e.target.closest('.email-body')) {
+          this.aiTool.open = false;
+        }
+      });
+    },
+
+    handleSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) { this.aiTool.open = false; return; }
+      let node = sel.anchorNode;
+      while (node && !(node.classList && node.classList.contains('email-body'))) {
+        node = node.parentNode;
+        if (node === document.body) { node = null; break; }
+      }
+      if (!node) { this.aiTool.open = false; return; }
+      const text = sel.toString().trim();
+      if (text.length < 3) { this.aiTool.open = false; return; }
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      this.aiTool.open = true;
+      this.aiTool.x = Math.max(160, Math.min(window.innerWidth - 160, rect.left + rect.width/2));
+      this.aiTool.y = rect.top - 6;
+      this.aiTool.emailKey = node.dataset.email;
+      this.aiTool.range = sel.getRangeAt(0).cloneRange();
+      this.aiTool.text = text;
+    },
+
+    runAction(action) {
+      if (!this.aiTool.range || !this.aiTool.emailKey) return;
+      this.aiTool.loading = action;
+      const key = this.aiTool.emailKey;
+      const original = this.aiTool.text;
+      // Simulate Claude latency, then apply rewrite
+      setTimeout(() => {
+        const rewrite = this.mockRewrite(action, original);
+        this.applyDiff(key, rewrite, original);
+        this.aiTool.loading = null;
+        this.aiTool.open = false;
+      }, 650 + Math.random() * 350);
+    },
+
+    mockRewrite(action, original) {
+      // Predefined responses by action for the demo. Real backend would call Claude.
+      const lower = original.toLowerCase();
+      if (action === 'shorten') {
+        if (lower.includes('could i send over our 30-day cs playbook')) return 'mind if I send the playbook Gainsight used to recover 4.2M?';
+        if (lower.includes('surfaces the accounts most likely to slip')) return 'catches accounts that slip before QBR.';
+        if (lower.includes('clawed back 14 at-risk accounts inside 30 days')) return 'recovered 14 at-risk accounts in 30 days';
+        return original.split(' ').filter((_,i)=>i%3!==2).join(' ');
+      }
+      if (action === 'soften') {
+        if (lower.startsWith('mind if')) return original.replace(/^Mind if/i, 'happy to — okay if');
+        if (lower.startsWith('could i')) return original.replace(/^could I/i, 'would it help if I');
+        return 'happy to ' + original.toLowerCase();
+      }
+      if (action === 'anchor') {
+        if (lower.includes('gainsight')) return original.replace(/Gainsight/g, 'Vitally').replace(/4\.2M/g, '3.1M');
+        if (lower.includes('vitally')) return original.replace(/Vitally/g, 'ChurnZero').replace(/14 at-risk/g, '9 at-risk');
+        if (lower.includes('catalyst')) return original.replace(/Catalyst/g, 'Gainsight').replace(/200/g, '180');
+        return original;
+      }
+      if (action === 'plain') {
+        return original
+          .replace(/cadence/gi, 'rhythm')
+          .replace(/leverage/gi, 'use')
+          .replace(/optimize/gi, 'tighten')
+          .replace(/silent feature-drop signals/gi, 'accounts going quiet on the product')
+          .replace(/mid-cycle/gi, 'between reviews')
+          .replace(/stalled renewals/gi, 'renewals that stalled');
+      }
+      if (action === 'question') {
+        if (lower.includes('i can send') || lower.includes("i'll send")) return original.replace(/I can send|I'll send/i, 'Could I send');
+        if (!original.endsWith('?')) return original.replace(/\.?$/, '?');
+        return original;
+      }
+      return `[${action}] ${original}`;
+    },
+
+    applyDiff(key, newText, oldText) {
+      const range = this.aiTool.range;
+      // Replace the selection with diff markup
+      range.deleteContents();
+      const wrapper = document.createElement('span');
+      wrapper.className = 'diff-pending';
+      wrapper.setAttribute('data-old', oldText);
+      wrapper.setAttribute('data-new', newText);
+      wrapper.innerHTML =
+        `<span class="diff-old">${this.escapeHtml(oldText)}</span>` +
+        `<span class="diff-new">${this.escapeHtml(newText)}</span>` +
+        `<span class="diff-actions" contenteditable="false">` +
+          `<button data-act="accept" title="Accept">✓</button>` +
+          `<button data-act="reject" title="Reject">✕</button>` +
+        `</span>`;
+      range.insertNode(wrapper);
+      // Sync state body from DOM
+      const bodyEl = document.getElementById(`ebody-${key}`);
+      this.emails[key].body = bodyEl.innerHTML;
+      this.audit(key);
+    },
+
+    handleDiffClick(ev, key) {
+      const btn = ev.target.closest('.diff-pending .diff-actions button');
+      if (!btn) return;
+      const wrap = btn.closest('.diff-pending');
+      const act = btn.dataset.act;
+      if (act === 'accept') {
+        const newText = wrap.getAttribute('data-new');
+        wrap.replaceWith(document.createTextNode(newText));
+      } else {
+        const oldText = wrap.getAttribute('data-old');
+        wrap.replaceWith(document.createTextNode(oldText));
+      }
+      const bodyEl = document.getElementById(`ebody-${key}`);
+      this.emails[key].body = bodyEl.innerHTML;
+      this.audit(key);
+    },
+
+    escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    },
+
+    plainText(key) {
+      const el = document.getElementById(`ebody-${key}`);
+      if (!el) return '';
+      // Strip diff wrappers — count only what would be sent
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('.diff-old, .diff-actions').forEach(n => n.remove());
+      clone.querySelectorAll('.diff-new').forEach(n => { n.replaceWith(document.createTextNode(n.textContent)); });
+      return clone.innerText;
+    },
+
+    audit(key) {
+      const raw = this.plainText(key);
+      if (!raw) return;
+      // mergetag tokens like {first_name} count as a prospect-anchored signal
+      const mergetags = (raw.match(/\{(?:first_name|company_name|company|first|last)\}/g) || []).length;
+      const text = raw.replace(/\{[^}]+\}/g, ' ').replace(/\s+/g, ' ').trim();
+      const words = text ? text.split(/\s+/).length : 0;
+      const youCount = (text.match(/\b(you|your|yours|yourself)\b/gi) || []).length + mergetags;
+      const weCount = (text.match(/\b(we|our|ours|i|my|me|us|i'll|i'm|i've)\b/gi) || []).length;
+      const ratio = `${youCount}:${weCount}`;
+      const ratioOk = youCount >= weCount * 2;
+      const dollar = !/\$\s*\d/.test(text);
+      const spamHits = (text.match(/\b(free|guarantee|100%|click here|act now|limited time|risk-free|no obligation)\b/gi) || []);
+      const spam = spamHits.length === 0 ? 'PASS' : 'FAIL';
+
+      this.emails[key].audits.words = words;
+      this.emails[key].audits.ratio = ratio;
+      this.emails[key].audits.ratioOk = ratioOk;
+      this.emails[key].audits.dollar = dollar;
+      this.emails[key].audits.spam = spam;
+
+      // Debounced "plain-language" (mock Haiku call)
+      clearTimeout(this.plainTimers[key]);
+      this.emails[key].audits.plain = 'checking';
+      this.plainTimers[key] = setTimeout(() => {
+        const jargon = /\b(cadence|leverage|optimize|holistic|synergy|stack|paradigm|robust|seamless|frictionless)\b/i.test(text);
+        const stillHasDiff = document.querySelector(`#ebody-${key} .diff-pending`);
+        this.emails[key].audits.plain = jargon ? '1 fix' : (stillHasDiff ? 'checking' : 'PASS');
+      }, 1100);
+    },
+
+    regenerateEmail(key) {
+      // Demo: cycle a small set of "regenerated" variants
+      const variants = {
+        e1: [
+          `<p>{first_name} -</p><p class="mt-2">could I send over our 30-day CS playbook that <strong>Gainsight</strong> used to recover <strong>4.2M</strong> in stalled renewals last quarter?</p><p class="mt-2">Their team runs it as a one-page risk audit at day 14 — surfaces the accounts most likely to slip before the QBR even lands.</p>`,
+          `<p>{first_name} -</p><p class="mt-2">mind if I send the recovery play <strong>Gainsight</strong> ran when <strong>4.2M</strong> in renewals stalled last quarter?</p><p class="mt-2">It runs as a day-14 audit between QBRs — catches the silent ones before they leave.</p>`,
+        ],
+        e2: [
+          this.emails.e2.body,
+          `<p>{first_name},</p><p class="mt-2">when <strong>Vitally</strong> ran this on their book, they pulled <strong>14 accounts</strong> back from the brink in a month — the win was catching feature-drop signals weeks before the QBR.</p><p class="mt-2">If your reviews are missing the silent ones, could I send the audit template?</p>`,
+        ],
+        e3: [
+          this.emails.e3.body,
+          `<p><strong>ChurnZero's</strong> CS team triages their full book in under an hour every Monday using the QBR rubric.</p><p class="mt-2">Mind if I send it over?</p>`,
+        ]
+      };
+      const cur = this.emails[key].body;
+      const list = variants[key];
+      const idx = list.findIndex(v => v === cur);
+      this.emails[key].body = list[(idx + 1) % list.length];
+      this.$nextTick(() => this.audit(key));
+    },
     workspaces: [
       { slug:'si', tag:'SI', name:'Something Inc.', bg:'#FF6900', turns:8, ctx:14, active:3, replies:1 },
       { slug:'launchnotes', tag:'LN', name:'LaunchNotes', bg:'#7c3aed', turns:31, ctx:47, active:2, replies:0 },
