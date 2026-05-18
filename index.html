@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Campaign Pipeline — Web App</title>
+<title>Campaign Pipeline — Something Inc.</title>
+<link rel="icon" type="image/png" href="logo.png" />
+<meta name="theme-color" content="#FF6900" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
@@ -15,15 +17,16 @@
           mono: ['"JetBrains Mono"', '"SF Mono"', 'Menlo', 'monospace'],
         },
         colors: {
-          surface: { DEFAULT:'#fafaf9', card:'#ffffff', sunk:'#f4f4f3', hover:'#f0eeec' },
-          ink: { 900:'#0a0a0a', 700:'#2a2a2a', 500:'#5a5a5a', 400:'#7a7a7a', 300:'#9a9a9a', 200:'#c8c5c1', 100:'#e6e3df' },
-          line: { DEFAULT:'#e8e5e0', strong:'#d4cfc7' },
-          brand: { DEFAULT:'#1f1d1a', hi:'#3b3933' },
-          acc: { DEFAULT:'#2563eb', soft:'#dbeafe' },
-          ok: { DEFAULT:'#059669', soft:'#d1fae5' },
-          warn: { DEFAULT:'#d97706', soft:'#fef3c7' },
-          bad: { DEFAULT:'#dc2626', soft:'#fee2e2' },
-          purple: { DEFAULT:'#7c3aed', soft:'#ede9fe' },
+          // SI brand kit — primary brown + accent orange on warm off-white
+          surface: { DEFAULT:'#FFF9F5', card:'#FFFFFF', sunk:'#FAF1E8', hover:'#FFEDE0' },
+          ink:     { 900:'#41220B', 700:'#543823', 500:'#7A5A40', 400:'#9A816A', 300:'#B8A38B', 200:'#D9C7B0', 100:'#F2E5D4' },
+          line:    { DEFAULT:'#FFEDE0', strong:'#F2D9C2' },
+          brand:   { DEFAULT:'#41220B', hi:'#543823' },
+          acc:     { DEFAULT:'#FF6900', hi:'#E25A00', soft:'#FFE8D9' },
+          ok:      { DEFAULT:'#10B981', soft:'#D1FAE5' },
+          warn:    { DEFAULT:'#F59E0B', soft:'#FEF3C7' },
+          bad:     { DEFAULT:'#EF4444', soft:'#FEE2E2' },
+          purple:  { DEFAULT:'#7c3aed', soft:'#ede9fe' },
         }
       }
     }
@@ -33,7 +36,7 @@
 <style>
   body { -webkit-font-smoothing: antialiased; }
   .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-  .scroll-thin::-webkit-scrollbar-thumb { background: #d4cfc7; border-radius: 99px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #F2D9C2; border-radius: 99px; }
   .chip { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium; }
   [x-cloak] { display:none !important; }
   .tab-active { @apply border-b-2 border-brand text-brand; }
@@ -50,9 +53,11 @@
     <svg class="w-5 h-5" viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
   </button>
 
-  <div class="hidden md:flex items-center gap-2 mr-4">
-    <div class="w-7 h-7 rounded-lg bg-brand text-white flex items-center justify-center font-bold text-sm">C</div>
-    <div class="font-semibold tracking-tight">Campaign Pipeline</div>
+  <div class="hidden md:flex items-center gap-2.5 mr-4">
+    <img src="logo.png" alt="Something Inc." class="w-7 h-7 rounded-md object-cover"/>
+    <div class="font-semibold tracking-tight">Something Inc.</div>
+    <span class="text-ink-400 text-sm">·</span>
+    <span class="text-ink-500 text-sm">Campaigns</span>
   </div>
 
   <!-- workspace switcher (always visible) -->
@@ -102,7 +107,7 @@
       <span class="hidden md:inline text-ink-700">Claude</span>
       <span x-show="claudeQueue.length>0" class="chip bg-acc-soft text-acc font-semibold" x-text="claudeQueue.length"></span>
     </button>
-    <div class="hidden md:flex w-8 h-8 rounded-full bg-brand text-white items-center justify-center text-sm font-semibold">N</div>
+    <div class="hidden md:flex w-8 h-8 rounded-full bg-brand text-white items-center justify-center text-sm font-semibold">NF</div>
   </div>
 </header>
 
@@ -116,8 +121,8 @@
   >
   <div class="md:hidden flex items-center justify-between mb-3">
     <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded-lg bg-brand text-white flex items-center justify-center font-bold text-sm">C</div>
-      <div class="font-semibold tracking-tight text-sm">Campaign Pipeline</div>
+      <img src="logo.png" alt="Something Inc." class="w-7 h-7 rounded-md object-cover"/>
+      <div class="font-semibold tracking-tight text-sm">Something Inc.</div>
     </div>
     <button @click="mobileNavOpen=false" class="p-1 text-ink-400 hover:text-ink-900">✕</button>
   </div>
@@ -1148,7 +1153,7 @@
               {c:'V2 Demand Gen Lifecycle',  ws:'PX', wsbg:'#059669', sent:842,  rep:'1.78%', pos:'0.71%', hyp:'Lifecycle responds to mechanism-named offers', qa:'14d: 2026-05-31'},
               {c:'V2 SEO Agencies',          ws:'GW', wsbg:'#d97706', sent:412,  rep:'2.18%', pos:'0.97%', hyp:'REC offer + audit anchor outperforms baseline', qa:'14d: 2026-05-31'},
               {c:'DEL-12 produce-on-reply',  ws:'LN', wsbg:'#7c3aed', sent:1042, rep:'1.44%', pos:'0.58%', hyp:'Per-lead HTML lifts M4 bridge', qa:'14d: today 🏆'},
-              {c:'V2 Marketing Agencies DIRECT', ws:'SI', wsbg:'#2563eb', sent:2418, rep:'0.91%', pos:'0.33%', hyp:'DIRECT pivot vs wholesale baseline', qa:'14d: 2026-05-25'},
+              {c:'V2 Marketing Agencies DIRECT', ws:'SI', wsbg:'#FF6900', sent:2418, rep:'0.91%', pos:'0.33%', hyp:'DIRECT pivot vs wholesale baseline', qa:'14d: 2026-05-25'},
             ]">
               <tr class="hover:bg-surface-hover">
                 <td class="px-4 py-2.5 font-medium" x-text="r.c"></td>
@@ -1280,11 +1285,11 @@
         {ts:'10:47', ws:'PX', wsbg:'#059669', kind:'reply', msg:'Positive reply from Lacey Howard (Webflow) on Campaign 187'},
         {ts:'10:46', ws:'GW', wsbg:'#d97706', kind:'launch', msg:'Launch alert posted · CC auto-refresh queued for GW'},
         {ts:'10:42', ws:'NE', wsbg:'#fb923c', kind:'pipeline', msg:'Pipeline finished · 487 verified leads · 41% find rate'},
-        {ts:'10:38', ws:'SI', wsbg:'#2563eb', kind:'qa', msg:'QA #4 wrote BLOCK on SEG9 — operator review needed'},
+        {ts:'10:38', ws:'SI', wsbg:'#FF6900', kind:'qa', msg:'QA #4 wrote BLOCK on SEG9 — operator review needed'},
         {ts:'10:31', ws:'ER', wsbg:'#06b6d4', kind:'warn', msg:'Apollo scrape stalled at 7811/12000 — heartbeat ok'},
         {ts:'10:28', ws:'LN', wsbg:'#7c3aed', kind:'reply', msg:'Positive reply on Campaign 241 — calendar booked, no action needed'},
         {ts:'10:14', ws:'PX', wsbg:'#059669', kind:'reply', msg:'Positive reply on Campaign 189 (Lifecycle Ops)'},
-        {ts:'09:52', ws:'SI', wsbg:'#2563eb', kind:'memory', msg:'Memory: PO compiler step shipped (2026-05-18)'},
+        {ts:'09:52', ws:'SI', wsbg:'#FF6900', kind:'memory', msg:'Memory: PO compiler step shipped (2026-05-18)'},
         {ts:'09:18', ws:'GW', wsbg:'#d97706', kind:'finance', msg:'Daily spend rollup · €312 (within budget)'},
       ]">
         <div class="px-5 py-3 flex items-start gap-3 hover:bg-surface-hover">
@@ -1352,7 +1357,7 @@ function appState() {
     inboxOpenThread() { return this.inboxSelected !== null },
     claudeQueue: [1,2,3],
     workspaces: [
-      { slug:'si', tag:'SI', name:'Something Inc.', bg:'#2563eb', turns:8, ctx:14, active:3, replies:1 },
+      { slug:'si', tag:'SI', name:'Something Inc.', bg:'#FF6900', turns:8, ctx:14, active:3, replies:1 },
       { slug:'launchnotes', tag:'LN', name:'LaunchNotes', bg:'#7c3aed', turns:31, ctx:47, active:2, replies:0 },
       { slug:'proxima', tag:'PX', name:'Proxima', bg:'#059669', turns:62, ctx:71, active:4, replies:3 },
       { slug:'goodwork', tag:'GW', name:'Goodwork', bg:'#d97706', turns:94, ctx:82, active:2, replies:0 },
@@ -1363,11 +1368,11 @@ function appState() {
       { slug:'nec', tag:'NE', name:'Northeast Construction', bg:'#fb923c', turns:11, ctx:19, active:0, replies:0 },
     ],
     inboxThreads: [
-      {id:1, name:'Lacey Howard', initials:'LH', color:'#2563eb', title:'Sr Lifecycle Mktg', co:'Webflow', ws:'PX', wsBg:'#059669', step:'E2', when:'12m', needsAsset:true, snippet:'Yes — would love to see the audit template. We just had a Q1 churn spike on the SMB cohort…'},
+      {id:1, name:'Lacey Howard', initials:'LH', color:'#FF6900', title:'Sr Lifecycle Mktg', co:'Webflow', ws:'PX', wsBg:'#059669', step:'E2', when:'12m', needsAsset:true, snippet:'Yes — would love to see the audit template. We just had a Q1 churn spike on the SMB cohort…'},
       {id:2, name:'Marcus Chen', initials:'MC', color:'#7c3aed', title:'VP CX', co:'Hyland Software', ws:'GW', wsBg:'#d97706', step:'E1', when:'42m', snippet:'Interesting. Send the playbook.'},
       {id:3, name:'Jonas Becker', initials:'JB', color:'#059669', title:'Lifecycle Ops', co:'Notion', ws:'PX', wsBg:'#059669', step:'E2', when:'1h', needsAsset:true, snippet:'Send the play. Curious what the day-14 audit covers exactly.'},
       {id:4, name:'Priya Shah', initials:'PS', color:'#dc2626', title:'Demand Gen Director', co:'Ramp', ws:'ER', wsBg:'#06b6d4', step:'E3', when:'2h', snippet:"I'm not the right person — Sarah Lee runs lifecycle. Looping her in."},
-      {id:5, name:'Aaron Klein', initials:'AK', color:'#0d9488', title:'Head of Growth', co:'Vercel', ws:'SI', wsBg:'#2563eb', step:'E2', when:'3h', snippet:'Sure, send it over. Also curious how you measure attribution back to the audit specifically.'},
+      {id:5, name:'Aaron Klein', initials:'AK', color:'#0d9488', title:'Head of Growth', co:'Vercel', ws:'SI', wsBg:'#FF6900', step:'E2', when:'3h', snippet:'Sure, send it over. Also curious how you measure attribution back to the audit specifically.'},
       {id:6, name:'Sasha Vahidi', initials:'SV', color:'#7c3aed', title:'VP Product', co:'PostHog', ws:'LN', wsBg:'#7c3aed', step:'E1', when:'5h', snippet:'Calendar booked for next Thursday.'},
     ],
     current() { return this.workspaces.find(w => w.slug === this.workspace) || this.workspaces[0]; }
