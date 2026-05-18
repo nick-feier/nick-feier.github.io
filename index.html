@@ -656,7 +656,69 @@
           <!-- Demo hint -->
           <div class="bg-acc-soft border border-acc/30 rounded-lg px-3 py-2 text-xs text-ink-700 flex items-center gap-2">
             <span class="text-acc font-medium">Live demo:</span>
-            <span>Type to see audits re-evaluate. Highlight any phrase inside an email to summon the AI toolbar.</span>
+            <span>Type to see audits re-evaluate · highlight a phrase to summon the AI toolbar · or use the prompt bar below for a full rewrite.</span>
+          </div>
+
+          <!-- Global rewrite prompt bar -->
+          <div class="bg-surface-card border border-line rounded-xl shadow-sm overflow-hidden">
+
+            <!-- Compose mode -->
+            <template x-if="globalRewriteState==='idle'">
+              <div>
+                <div class="flex items-start gap-3 p-3">
+                  <div class="shrink-0 w-7 h-7 rounded bg-brand text-white flex items-center justify-center text-xs font-semibold">⟲</div>
+                  <textarea
+                    x-model="globalPrompt"
+                    @keydown.meta.enter="submitGlobalRewrite()"
+                    @keydown.ctrl.enter="submitGlobalRewrite()"
+                    rows="1"
+                    placeholder="Tell Claude what to change. e.g. 'messaging is wrong, we're targeting RevOps leaders not CS — forecast accuracy resonates more than retention math'"
+                    class="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-400 resize-none py-1.5 min-h-[28px] max-h-32"
+                    @input="$el.style.height='auto'; $el.style.height=$el.scrollHeight+'px'"
+                  ></textarea>
+                  <button
+                    @click="submitGlobalRewrite()"
+                    :disabled="!globalPrompt.trim()"
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-brand text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-hi"
+                  >Rewrite all →</button>
+                </div>
+                <div class="px-3 pb-3 flex gap-1.5 flex-wrap text-xs">
+                  <span class="text-ink-400">Suggestions:</span>
+                  <template x-for="p in globalPromptSuggestions" :key="p">
+                    <button @click="globalPrompt=p; submitGlobalRewrite()" class="px-2 py-0.5 rounded-md border border-line text-ink-500 hover:bg-surface-hover hover:text-ink-900" x-text="p"></button>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Rewriting state -->
+            <template x-if="globalRewriteState==='rewriting'">
+              <div class="flex items-center gap-3 p-3">
+                <div class="shrink-0 w-7 h-7 rounded bg-brand text-white flex items-center justify-center text-xs"><span class="spinner inline-block">⟳</span></div>
+                <div class="flex-1 text-sm">
+                  <div class="text-ink-700 font-medium">Claude is rewriting all three emails…</div>
+                  <div class="text-xs text-ink-500 mt-0.5">Reading offer spec · voice profile · case study library · current draft</div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Result shown -->
+            <template x-if="globalRewriteState==='shown'">
+              <div class="bg-ok-soft border-b border-ok/30">
+                <div class="flex items-start gap-3 p-3">
+                  <div class="shrink-0 w-7 h-7 rounded bg-ok text-white flex items-center justify-center text-xs">✓</div>
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-ink-900">All three rewritten</div>
+                    <div class="text-xs text-ink-700 mt-0.5" x-text="rewriteSummary"></div>
+                    <div class="text-xs text-ink-500 mt-1 italic" x-text="`"${ rewritePromptSnapshot }"`"></div>
+                  </div>
+                  <div class="flex gap-2 shrink-0">
+                    <button @click="revertAllRewrites()" class="px-3 py-1.5 rounded-lg border border-line bg-surface-card text-sm hover:bg-surface-hover">Revert</button>
+                    <button @click="acceptAllRewrites()" class="px-3 py-1.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-hi">Keep</button>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- 3 email cards in a row -->
@@ -1466,6 +1528,20 @@ function appState() {
     plainTimers: {},
     aiTool: { open:false, x:0, y:0, emailKey:null, range:null, text:'', loading:null },
 
+    // ───── GLOBAL REWRITE STATE ─────
+    globalPrompt: '',
+    globalRewriteState: 'idle',     // idle · rewriting · shown
+    rewriteSummary: '',
+    rewritePromptSnapshot: '',
+    previousEmails: null,
+    globalPromptSuggestions: [
+      'Targeting RevOps leaders, not CS — forecast accuracy resonates more',
+      'Make it more direct, drop the soft openers',
+      'Wrong vertical — these are PLG SaaS founders, not enterprise CS',
+      'Lead with the metric, not the company name',
+      'Move proof from E1 to E3 and lead E1 with the pain'
+    ],
+
     initCopy() {
       // Audit initial state for all emails (don't mark plain-lang stale on boot —
       // the seeded values represent the LLM's last-known verdict from initial generation).
@@ -1665,6 +1741,159 @@ function appState() {
       const idx = list.findIndex(v => v === cur);
       this.emails[key].body = list[(idx + 1) % list.length];
       this.$nextTick(() => this.audit(key));
+    },
+
+    submitGlobalRewrite() {
+      const prompt = this.globalPrompt.trim();
+      if (!prompt) return;
+      // Snapshot for revert
+      this.previousEmails = JSON.parse(JSON.stringify({
+        e1: this.emails.e1, e2: this.emails.e2, e3: this.emails.e3
+      }));
+      this.rewritePromptSnapshot = prompt;
+      this.globalRewriteState = 'rewriting';
+      // Detect preset from prompt keywords
+      const p = prompt.toLowerCase();
+      let preset = 'direct';
+      let summary = 'Tightened the angle. Same offer, sharper framing.';
+      if (/revops|revenue ops|forecast|pipeline confidence/.test(p)) {
+        preset = 'revops';
+        summary = 'Swapped the CS-retention angle for RevOps forecast accuracy. New anchors: Clari, Gong, ChartHop. New deliverable bank: forecast-accuracy framework, slip-detection rubric.';
+      } else if (/plg|product[- ]led|founder|ceo|self[- ]serve/.test(p)) {
+        preset = 'plg';
+        summary = 'Rewrote for PLG SaaS founders. Anchors: Linear, Vercel, PostHog. Leading with expansion-ARR math instead of CS retention.';
+      } else if (/enterprise|fortune|large account|strategic/.test(p)) {
+        preset = 'ent';
+        summary = 'Softened CTAs for enterprise tone. Elevated proof scale (Datadog, Salesforce, ServiceNow). Long-form deliverable swap.';
+      } else if (/direct|drop the soft|sharper|punchier/.test(p)) {
+        preset = 'direct';
+        summary = 'Stripped soft openers. Pulled the metric to the front of each CTA.';
+      } else if (/move proof|lead.*pain|pain.*lead/.test(p)) {
+        preset = 'painfirst';
+        summary = 'Re-ordered the sequence: E1 now leads with the pain anchor, proof moved to E3.';
+      }
+      // Simulate Claude roundtrip
+      setTimeout(() => {
+        this.applyPreset(preset);
+        this.rewriteSummary = summary;
+        this.globalRewriteState = 'shown';
+        this.$nextTick(() => ['e1','e2','e3'].forEach(k => this.audit(k)));
+      }, 1700 + Math.random() * 400);
+    },
+
+    applyPreset(name) {
+      const presets = {
+        revops: {
+          e1: { subject:'forecast accuracy',
+            body:`<p>{first_name} -</p>
+<p class="mt-2">could I send over the forecast-accuracy framework <strong>Clari</strong> used to tighten their pipeline confidence to <strong>87%</strong> last quarter?</p>
+<p class="mt-2">Their team runs it as a weekly committed-vs-best-case snapshot — catches the deals that drift from commit before the call.</p>`,
+            signature:`Nick Feier<br/>Co-Founder | Something Inc.` },
+          e2: { subject:null,
+            body:`<p>{first_name},</p>
+<p class="mt-2"><strong>Gong</strong> applied the same framework and shaved <strong>11 days</strong> off their average sales cycle in a quarter — the gain came from rep-by-rep slip detection at commit-stage.</p>
+<p class="mt-2">If your forecast keeps drifting between commit and close, could I send the rubric we used with them?</p>`,
+            signature:'Nick' },
+          e3: { subject:null,
+            body:`<p><strong>ChartHop's</strong> RevOps team uses our pipeline confidence rubric to score deals on a 5-point slip-risk scale every Monday.</p>
+<p class="mt-2">Mind if I send it over?</p>`,
+            signature:'Nick' },
+        },
+        plg: {
+          e1: { subject:'expansion math',
+            body:`<p>{first_name} -</p>
+<p class="mt-2">could I send the expansion-ARR dashboard <strong>Linear</strong> used to lift net-revenue retention by <strong>27%</strong> last quarter?</p>
+<p class="mt-2">They run it as a weekly snapshot of accounts that look healthy on usage but soft on expansion intent.</p>`,
+            signature:`Nick Feier<br/>Co-Founder | Something Inc.` },
+          e2: { subject:null,
+            body:`<p>{first_name},</p>
+<p class="mt-2"><strong>Vercel</strong> shipped the same dashboard into their PLG motion — caught <strong>9 high-intent accounts</strong> their usage signals had ranked as stable the week before they churned.</p>
+<p class="mt-2">If your usage signals miss the soft expansion drift, could I send the schema?</p>`,
+            signature:'Nick' },
+          e3: { subject:null,
+            body:`<p><strong>PostHog's</strong> growth team uses our PLG-to-CS bridge rubric to triage product-qualified accounts that stall before they convert to paid expansion.</p>
+<p class="mt-2">Mind if I send it over?</p>`,
+            signature:'Nick' },
+        },
+        ent: {
+          e1: { subject:'a 90-day strategic review',
+            body:`<p>{first_name} -</p>
+<p class="mt-2">would it be useful to see the 90-day strategic CS review <strong>Datadog</strong> ran across their top <strong>500 accounts</strong> last quarter?</p>
+<p class="mt-2">It's a structured cross-functional read-out — surfaces strategic-account risk that QBRs at this scale tend to flatten.</p>`,
+            signature:`Nick Feier<br/>Co-Founder | Something Inc.` },
+          e2: { subject:null,
+            body:`<p>{first_name},</p>
+<p class="mt-2"><strong>Salesforce's</strong> strategic-accounts team adopted the same review cadence and pulled <strong>37 at-risk Fortune-1000 accounts</strong> back into expansion within two quarters.</p>
+<p class="mt-2">If your strategic book is hitting the same flat QBR ceiling, would a sample read-out from a comparable book be useful?</p>`,
+            signature:'Nick' },
+          e3: { subject:null,
+            body:`<p><strong>ServiceNow's</strong> strategic-CS leadership uses our quarterly strategic review template to brief the board on top-account health every quarter.</p>
+<p class="mt-2">Would it help to see the template?</p>`,
+            signature:'Nick' },
+        },
+        direct: {
+          e1: { subject:'4.2M recovered',
+            body:`<p>{first_name} -</p>
+<p class="mt-2"><strong>Gainsight</strong> recovered <strong>4.2M</strong> in stalled renewals last quarter with our 30-day playbook. Send it?</p>
+<p class="mt-2">Day-14 audit. One page. Catches what QBRs miss.</p>`,
+            signature:`Nick Feier<br/>Co-Founder | Something Inc.` },
+          e2: { subject:null,
+            body:`<p>{first_name},</p>
+<p class="mt-2"><strong>Vitally</strong>: <strong>14 at-risk accounts</strong> clawed back in 30 days using the audit template.</p>
+<p class="mt-2">Want it?</p>`,
+            signature:'Nick' },
+          e3: { subject:null,
+            body:`<p><strong>Catalyst</strong>: <strong>200 accounts</strong> triaged Monday morning with our QBR rubric.</p>
+<p class="mt-2">Send?</p>`,
+            signature:'Nick' },
+        },
+        painfirst: {
+          e1: { subject:'the silent at-risk problem',
+            body:`<p>{first_name} -</p>
+<p class="mt-2">most CS books at your stage are losing <strong>4–7%</strong> of revenue to accounts that look healthy on usage but slip silently between QBRs.</p>
+<p class="mt-2">If that's what you're seeing too, could I send over the day-14 audit Gainsight uses to catch them early?</p>`,
+            signature:`Nick Feier<br/>Co-Founder | Something Inc.` },
+          e2: { subject:null,
+            body:`<p>{first_name},</p>
+<p class="mt-2">the audit is a single page — committed-vs-actual on the metrics that lead churn (login decay, feature drop, support-thread sentiment).</p>
+<p class="mt-2">If a sample run on a similar book would help, could I send the template?</p>`,
+            signature:'Nick' },
+          e3: { subject:null,
+            body:`<p>here's what it caught for <strong>Vitally</strong>: <strong>14 accounts</strong> their QBR cadence had marked stable, flagged 30 days before they would have churned.</p>
+<p class="mt-2">Mind if I send the rubric?</p>`,
+            signature:'Nick' },
+        },
+      };
+      const data = presets[name];
+      if (!data) return;
+      ['e1','e2','e3'].forEach(k => {
+        this.emails[k].subject = data[k].subject;
+        this.emails[k].body = data[k].body;
+        this.emails[k].signature = data[k].signature;
+      });
+    },
+
+    acceptAllRewrites() {
+      this.globalRewriteState = 'idle';
+      this.previousEmails = null;
+      this.globalPrompt = '';
+      this.rewritePromptSnapshot = '';
+    },
+
+    revertAllRewrites() {
+      if (this.previousEmails) {
+        ['e1','e2','e3'].forEach(k => {
+          this.emails[k].subject = this.previousEmails[k].subject;
+          this.emails[k].body = this.previousEmails[k].body;
+          this.emails[k].signature = this.previousEmails[k].signature;
+          this.emails[k].audits = this.previousEmails[k].audits;
+        });
+        this.$nextTick(() => ['e1','e2','e3'].forEach(k => this.audit(k, false)));
+      }
+      this.globalRewriteState = 'idle';
+      this.previousEmails = null;
+      this.globalPrompt = '';
+      this.rewritePromptSnapshot = '';
     },
     workspaces: [
       { slug:'si', tag:'SI', name:'Something Inc.', bg:'#FF6900', turns:8, ctx:14, active:3, replies:1 },
